@@ -112,6 +112,8 @@ class _OpsAddSitePageState extends State<OpsAddSitePage> {
   final _secretCtrl = TextEditingController();
   String _status = '';
   OpsProbeOutcome? _outcome;
+  /// Winning base URL from last probe (scheme resolved).
+  String? _resolvedBaseUrl;
   bool _busy = false;
 
   @override
@@ -122,34 +124,59 @@ class _OpsAddSitePageState extends State<OpsAddSitePage> {
     super.dispose();
   }
 
+  String _effectiveBaseUrl() {
+    final resolved = _resolvedBaseUrl;
+    if (resolved != null && resolved.isNotEmpty) {
+      return resolved;
+    }
+    final plan = OpsEndpoint.resolve(_urlCtrl.text);
+    return plan.isEmpty ? '' : plan.candidates.first;
+  }
+
   Future<void> _probe() async {
     if (_busy) return;
-    final base = OpsSiteEntry.normalizeBaseUrl(_urlCtrl.text);
-    if (base.isEmpty) {
-      setState(() => _status = '请填写 Base URL');
+    final plan = OpsEndpoint.resolve(_urlCtrl.text);
+    if (plan.isEmpty) {
+      setState(() {
+        _status = '请填写域名或 IP';
+        _outcome = null;
+        _resolvedBaseUrl = null;
+      });
       return;
     }
     setState(() {
       _busy = true;
-      _status = '探测中…';
+      _status = plan.kind == OpsEndpointKind.domain
+          ? '探测中（优先 https，再 http）…'
+          : plan.kind == OpsEndpointKind.ip
+              ? '探测中（内网/IP 使用 http）…'
+              : '探测中…';
       _outcome = null;
+      _resolvedBaseUrl = null;
     });
     try {
       final store = await openOpsSiteStore();
-      final tmp = OpsSiteEntry(
-        id: 'tmp',
-        title: _titleCtrl.text.trim(),
-        baseUrl: base,
+      final probeStore = store.credentialStoreFor(
+        OpsSiteEntry(id: 'tmp', title: '', baseUrl: plan.candidates.first),
       );
-      final client = AutumnOpsClient(
-        baseUrl: base,
-        store: store.credentialStoreFor(tmp),
+      final hasCert = await probeStore.load() != null;
+      final resolved = await OpsEndpoint.probePlan(
+        plan: plan,
+        store: probeStore,
+        hasLocalCert: hasCert,
       );
-      final hasCert = await store.credentialStoreFor(tmp).load() != null;
-      final out = await client.probeOutcome(hasLocalCert: hasCert);
+      if (!mounted) return;
       setState(() {
-        _outcome = out;
-        _status = out.message;
+        _outcome = resolved.outcome;
+        _resolvedBaseUrl = resolved.baseUrl.isEmpty ? null : resolved.baseUrl;
+        if (resolved.baseUrl.isNotEmpty &&
+            resolved.outcome.kind != OpsProbeKind.network) {
+          _urlCtrl.text = resolved.baseUrl;
+        }
+        final tried = resolved.tried.join(' → ');
+        _status = resolved.tried.length > 1
+            ? '${resolved.outcome.message}\n尝试: $tried'
+            : resolved.outcome.message;
       });
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -158,10 +185,10 @@ class _OpsAddSitePageState extends State<OpsAddSitePage> {
 
   Future<void> _enrollAndOpen() async {
     if (_busy) return;
-    final base = OpsSiteEntry.normalizeBaseUrl(_urlCtrl.text);
+    final base = _effectiveBaseUrl();
     final secret = _secretCtrl.text.trim();
     if (base.isEmpty || secret.isEmpty) {
-      setState(() => _status = '请填写 URL 与 OpsEnroll secret');
+      setState(() => _status = '请填写地址与 OpsEnroll secret');
       return;
     }
     if (_outcome?.kind != OpsProbeKind.pending &&
@@ -205,7 +232,11 @@ class _OpsAddSitePageState extends State<OpsAddSitePage> {
   }
 
   Future<void> _saveReadyAndOpen() async {
-    final base = OpsSiteEntry.normalizeBaseUrl(_urlCtrl.text);
+    final base = _effectiveBaseUrl();
+    if (base.isEmpty) {
+      setState(() => _status = '请先成功探测');
+      return;
+    }
     final store = await openOpsSiteStore();
     final id = const Uuid().v4();
     final site = OpsSiteEntry(
@@ -249,11 +280,23 @@ class _OpsAddSitePageState extends State<OpsAddSitePage> {
           TextField(
             controller: _urlCtrl,
             decoration: const InputDecoration(
-              labelText: 'Base URL',
-              hintText: 'https://example.com',
+              labelText: '域名或 IP',
+              hintText: 'example.com / 192.168.1.10 / https://…',
               border: OutlineInputBorder(),
+              helperMaxLines: 3,
+              helperText:
+                  '域名：优先 https 再 http；IP（含内网）：http。已写 http(s):// 则不再自动拼接。',
             ),
             keyboardType: TextInputType.url,
+            onChanged: (_) {
+              // Input changed — discard previous resolved winner.
+              if (_resolvedBaseUrl != null || _outcome != null) {
+                setState(() {
+                  _resolvedBaseUrl = null;
+                  _outcome = null;
+                });
+              }
+            },
             onEditingComplete: _probe,
           ),
           const SizedBox(height: 12),

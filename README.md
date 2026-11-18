@@ -99,3 +99,15 @@ shell → autumn_ops_ui → autumn_ops
 ```
 
 本地证书落在本 App 沙盒 `Application Support/autumn_ops/`；与产品 App 不共享。可通过管理页「导出口令包 → 导入」迁移。
+
+## 添加站点 · 地址探测
+
+输入框可填**域名**或 **IP**（含内网）：
+
+| 输入 | 探测顺序 |
+|------|----------|
+| `example.com` / `host:port/path` | `https://…` → 失败再 `http://…` |
+| `192.168.1.10` / `[fd00::1]:8080` | 仅 `http://…` |
+| 已带 `http://` 或 `https://` | **不**再自动拼接，按原文探测 |
+
+Android / iOS 已允许明文 HTTP（内网 IP）。成功探测后输入框会回填实际可用的 Base URL。

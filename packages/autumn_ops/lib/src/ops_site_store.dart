@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'ops_endpoint.dart';
 import 'ops_models.dart';
 import 'ops_store.dart';
 
@@ -46,13 +47,9 @@ class OpsSiteEntry {
     );
   }
 
-  static String normalizeBaseUrl(String u) {
-    var s = u.trim();
-    while (s.endsWith('/')) {
-      s = s.substring(0, s.length - 1);
-    }
-    return s;
-  }
+  /// Prefer [OpsEndpoint.normalizeBaseUrl] / [OpsEndpoint.resolve] for new input.
+  static String normalizeBaseUrl(String u) =>
+      OpsEndpoint.normalizeBaseUrl(u);
 
   static String siteKeyFromBaseUrl(String baseUrl) {
     final n = normalizeBaseUrl(baseUrl).toLowerCase();

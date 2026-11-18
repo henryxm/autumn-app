@@ -64,7 +64,9 @@ class OpsProbeOutcome {
       if (e.type == DioExceptionType.connectionTimeout ||
           e.type == DioExceptionType.receiveTimeout ||
           e.type == DioExceptionType.connectionError ||
-          e.type == DioExceptionType.sendTimeout) {
+          e.type == DioExceptionType.sendTimeout ||
+          e.type == DioExceptionType.badCertificate) {
+        // Treat TLS failures as network so domain probe can fall through to http.
         return const OpsProbeOutcome(
           kind: OpsProbeKind.network,
           message: 'Cannot reach site; check URL and network',

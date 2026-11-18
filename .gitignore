@@ -1,0 +1,24 @@
+# Local Flutter SDK (never commit)
+.flutter-sdk/
+
+# Dart / Flutter
+**/build/
+**/.dart_tool/
+**/.packages
+**/.flutter-plugins
+**/.flutter-plugins-dependencies
+**/.metadata
+.idea/
+*.iml
+.DS_Store
+
+# Lockfiles: keep shell app lock; ignore package locks
+packages/**/pubspec.lock
+
+# Shell ephemeral
+shell/.ios/
+shell/.android/
+shell/build/
+shell/.dart_tool/
+shell/.idea/
+shell/*.iml

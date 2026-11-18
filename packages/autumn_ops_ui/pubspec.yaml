@@ -1,0 +1,24 @@
+name: autumn_ops_ui
+description: Material UI for Autumn ops multi-site list/add/manage. Depends on autumn_ops.
+version: 0.1.0
+publish_to: 'none'
+
+environment:
+  sdk: ^3.6.2
+
+dependencies:
+  flutter:
+    sdk: flutter
+  autumn_ops:
+    path: ../autumn_ops
+  path_provider: ^2.1.5
+  share_plus: ^10.1.4
+  uuid: ^4.5.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+
+flutter:
+  uses-material-design: true

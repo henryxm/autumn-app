@@ -200,6 +200,523 @@ class OpsIpPage {
   }
 }
 
+/// 运维运行快照（`POST /ops/api/v1/runtime/snapshot`）。
+class OpsRuntimeSnapshot {
+  const OpsRuntimeSnapshot({
+    required this.collectedAt,
+    required this.system,
+    required this.jvm,
+    required this.disk,
+    required this.database,
+    required this.firewall,
+    required this.traffic,
+    required this.redis,
+    required this.paths,
+    this.exceptionsSupported = false,
+  });
+
+  final int collectedAt;
+  final OpsRuntimeSystem system;
+  final OpsRuntimeJvm jvm;
+  final OpsRuntimeDisk disk;
+  final OpsRuntimeDatabase database;
+  final OpsRuntimeFirewall firewall;
+  final OpsRuntimeTraffic traffic;
+  final OpsRuntimeRedis redis;
+  final OpsRuntimePaths paths;
+  final bool exceptionsSupported;
+
+  factory OpsRuntimeSnapshot.fromJson(Map<String, dynamic> json) {
+    Map<String, dynamic> section(String key) {
+      final v = json[key];
+      if (v is Map<String, dynamic>) return v;
+      if (v is Map) return Map<String, dynamic>.from(v);
+      return const {};
+    }
+
+    final ex = section('exceptions');
+    return OpsRuntimeSnapshot(
+      collectedAt: _asInt(json['collectedAt'], 0),
+      system: OpsRuntimeSystem.fromJson(section('system')),
+      jvm: OpsRuntimeJvm.fromJson(section('jvm')),
+      disk: OpsRuntimeDisk.fromJson(section('disk')),
+      database: OpsRuntimeDatabase.fromJson(section('database')),
+      firewall: OpsRuntimeFirewall.fromJson(section('firewall')),
+      traffic: OpsRuntimeTraffic.fromJson(section('traffic')),
+      redis: OpsRuntimeRedis.fromJson(section('redis')),
+      paths: OpsRuntimePaths.fromJson(section('paths')),
+      exceptionsSupported: ex['supported'] == true,
+    );
+  }
+}
+
+class OpsRuntimeSystem {
+  const OpsRuntimeSystem({
+    required this.available,
+    this.error,
+    this.hostname = '',
+    this.osName = '',
+    this.osArch = '',
+    this.osVersion = '',
+    this.availableProcessors = 0,
+    this.systemLoadAverage,
+    this.processCpuLoad,
+    this.systemCpuLoad,
+    this.physicalTotalBytes,
+    this.physicalUsedBytes,
+    this.physicalFreeBytes,
+  });
+
+  final bool available;
+  final String? error;
+  final String hostname;
+  final String osName;
+  final String osArch;
+  final String osVersion;
+  final int availableProcessors;
+  final double? systemLoadAverage;
+  final double? processCpuLoad;
+  final double? systemCpuLoad;
+  final int? physicalTotalBytes;
+  final int? physicalUsedBytes;
+  final int? physicalFreeBytes;
+
+  factory OpsRuntimeSystem.fromJson(Map<String, dynamic> json) {
+    return OpsRuntimeSystem(
+      available: json['available'] != false,
+      error: json['error']?.toString(),
+      hostname: '${json['hostname'] ?? ''}',
+      osName: '${json['osName'] ?? ''}',
+      osArch: '${json['osArch'] ?? ''}',
+      osVersion: '${json['osVersion'] ?? ''}',
+      availableProcessors: _asInt(json['availableProcessors'], 0),
+      systemLoadAverage: _asDouble(json['systemLoadAverage']),
+      processCpuLoad: _asDouble(json['processCpuLoad']),
+      systemCpuLoad: _asDouble(json['systemCpuLoad']),
+      physicalTotalBytes: _asIntOrNull(json['physicalTotalBytes']),
+      physicalUsedBytes: _asIntOrNull(json['physicalUsedBytes']),
+      physicalFreeBytes: _asIntOrNull(json['physicalFreeBytes']),
+    );
+  }
+}
+
+class OpsRuntimeJvm {
+  const OpsRuntimeJvm({
+    required this.available,
+    this.error,
+    this.uptimeMs = 0,
+    this.javaVersion = '',
+    this.vmName = '',
+    this.heap,
+    this.nonHeap,
+    this.threadLive = 0,
+    this.threadDaemon = 0,
+    this.threadPeak = 0,
+  });
+
+  final bool available;
+  final String? error;
+  final int uptimeMs;
+  final String javaVersion;
+  final String vmName;
+  final OpsRuntimeMemory? heap;
+  final OpsRuntimeMemory? nonHeap;
+  final int threadLive;
+  final int threadDaemon;
+  final int threadPeak;
+
+  factory OpsRuntimeJvm.fromJson(Map<String, dynamic> json) {
+    return OpsRuntimeJvm(
+      available: json['available'] != false,
+      error: json['error']?.toString(),
+      uptimeMs: _asInt(json['uptimeMs'], 0),
+      javaVersion: '${json['javaVersion'] ?? ''}',
+      vmName: '${json['vmName'] ?? ''}',
+      heap: OpsRuntimeMemory.tryParse(json['heap']),
+      nonHeap: OpsRuntimeMemory.tryParse(json['nonHeap']),
+      threadLive: _asInt(json['threadLive'], 0),
+      threadDaemon: _asInt(json['threadDaemon'], 0),
+      threadPeak: _asInt(json['threadPeak'], 0),
+    );
+  }
+}
+
+class OpsRuntimeMemory {
+  const OpsRuntimeMemory({
+    required this.used,
+    required this.committed,
+    required this.max,
+    this.init = 0,
+  });
+
+  final int used;
+  final int committed;
+  final int max;
+  final int init;
+
+  double get usedRatio {
+    final denom = max > 0 ? max : (committed > 0 ? committed : 0);
+    if (denom <= 0) return 0;
+    return (used / denom).clamp(0.0, 1.0);
+  }
+
+  static OpsRuntimeMemory? tryParse(dynamic raw) {
+    if (raw is! Map) return null;
+    final m = Map<String, dynamic>.from(raw);
+    return OpsRuntimeMemory(
+      init: _asInt(m['init'], 0),
+      used: _asInt(m['used'], 0),
+      committed: _asInt(m['committed'], 0),
+      max: _asInt(m['max'], 0),
+    );
+  }
+}
+
+class OpsRuntimeDisk {
+  const OpsRuntimeDisk({
+    required this.available,
+    this.error,
+    this.volumes = const [],
+  });
+
+  final bool available;
+  final String? error;
+  final List<OpsRuntimeDiskVolume> volumes;
+
+  factory OpsRuntimeDisk.fromJson(Map<String, dynamic> json) {
+    final raw = json['volumes'];
+    final list = <OpsRuntimeDiskVolume>[];
+    if (raw is List) {
+      for (final e in raw) {
+        if (e is Map) {
+          list.add(OpsRuntimeDiskVolume.fromJson(Map<String, dynamic>.from(e)));
+        }
+      }
+    }
+    return OpsRuntimeDisk(
+      available: json['available'] != false,
+      error: json['error']?.toString(),
+      volumes: list,
+    );
+  }
+}
+
+class OpsRuntimeDiskVolume {
+  const OpsRuntimeDiskVolume({
+    required this.name,
+    required this.path,
+    required this.available,
+    this.error,
+    this.totalBytes = 0,
+    this.usableBytes = 0,
+    this.usedBytes = 0,
+  });
+
+  final String name;
+  final String path;
+  final bool available;
+  final String? error;
+  final int totalBytes;
+  final int usableBytes;
+  final int usedBytes;
+
+  double get usedRatio {
+    if (totalBytes <= 0) return 0;
+    return (usedBytes / totalBytes).clamp(0.0, 1.0);
+  }
+
+  factory OpsRuntimeDiskVolume.fromJson(Map<String, dynamic> json) {
+    return OpsRuntimeDiskVolume(
+      name: '${json['name'] ?? ''}',
+      path: '${json['path'] ?? ''}',
+      available: json['available'] == true,
+      error: json['error']?.toString(),
+      totalBytes: _asInt(json['totalBytes'], 0),
+      usableBytes: _asInt(json['usableBytes'], 0),
+      usedBytes: _asInt(json['usedBytes'], 0),
+    );
+  }
+}
+
+class OpsRuntimeDatabase {
+  const OpsRuntimeDatabase({
+    required this.available,
+    this.error,
+    this.poolType = '',
+    this.productName = '',
+    this.productVersion = '',
+    this.url = '',
+    this.activeCount,
+    this.poolingCount,
+    this.waitThreadCount,
+    this.maxActive,
+    this.minIdle,
+    this.tableCount,
+    this.tableCountError,
+  });
+
+  final bool available;
+  final String? error;
+  final String poolType;
+  final String productName;
+  final String productVersion;
+  final String url;
+  final int? activeCount;
+  final int? poolingCount;
+  final int? waitThreadCount;
+  final int? maxActive;
+  final int? minIdle;
+  final int? tableCount;
+  final String? tableCountError;
+
+  factory OpsRuntimeDatabase.fromJson(Map<String, dynamic> json) {
+    return OpsRuntimeDatabase(
+      available: json['available'] == true,
+      error: json['error']?.toString(),
+      poolType: '${json['poolType'] ?? ''}',
+      productName: '${json['productName'] ?? ''}',
+      productVersion: '${json['productVersion'] ?? ''}',
+      url: '${json['url'] ?? ''}',
+      activeCount: _asIntOrNull(json['activeCount']),
+      poolingCount: _asIntOrNull(json['poolingCount']),
+      waitThreadCount: _asIntOrNull(json['waitThreadCount']),
+      maxActive: _asIntOrNull(json['maxActive']),
+      minIdle: _asIntOrNull(json['minIdle']),
+      tableCount: _asIntOrNull(json['tableCount']),
+      tableCountError: json['tableCountError']?.toString(),
+    );
+  }
+}
+
+class OpsRuntimeFirewall {
+  const OpsRuntimeFirewall({
+    required this.available,
+    this.error,
+    this.adminIpEnable = false,
+    this.adminIpCount = 0,
+    this.ipWhiteCount = 0,
+    this.ipBlackCount = 0,
+    this.firewallCount = 0,
+    this.shieldAttack = false,
+    this.shieldPrint = false,
+    this.shieldEnabled = false,
+    this.shieldAllowedIpCount = 0,
+    this.shieldAllowedIpSample = const [],
+    this.blackTopToday = const [],
+  });
+
+  final bool available;
+  final String? error;
+  final bool adminIpEnable;
+  final int adminIpCount;
+  final int ipWhiteCount;
+  final int ipBlackCount;
+  final int firewallCount;
+  final bool shieldAttack;
+  final bool shieldPrint;
+  final bool shieldEnabled;
+  final int shieldAllowedIpCount;
+  final List<String> shieldAllowedIpSample;
+  final List<OpsRuntimeBlackHit> blackTopToday;
+
+  factory OpsRuntimeFirewall.fromJson(Map<String, dynamic> json) {
+    final sample = <String>[];
+    final rawSample = json['shieldAllowedIpSample'];
+    if (rawSample is List) {
+      for (final e in rawSample) {
+        final s = '$e'.trim();
+        if (s.isNotEmpty) sample.add(s);
+      }
+    }
+    final top = <OpsRuntimeBlackHit>[];
+    final rawTop = json['blackTopToday'];
+    if (rawTop is List) {
+      for (final e in rawTop) {
+        if (e is Map) {
+          top.add(OpsRuntimeBlackHit.fromJson(Map<String, dynamic>.from(e)));
+        }
+      }
+    }
+    return OpsRuntimeFirewall(
+      available: json['available'] != false,
+      error: json['error']?.toString(),
+      adminIpEnable: json['adminIpEnable'] == true,
+      adminIpCount: _asInt(json['adminIpCount'], 0),
+      ipWhiteCount: _asInt(json['ipWhiteCount'], 0),
+      ipBlackCount: _asInt(json['ipBlackCount'], 0),
+      firewallCount: _asInt(json['firewallCount'], 0),
+      shieldAttack: json['shieldAttack'] == true,
+      shieldPrint: json['shieldPrint'] == true,
+      shieldEnabled: json['shieldEnabled'] == true,
+      shieldAllowedIpCount: _asInt(json['shieldAllowedIpCount'], 0),
+      shieldAllowedIpSample: sample,
+      blackTopToday: top,
+    );
+  }
+}
+
+class OpsRuntimeBlackHit {
+  const OpsRuntimeBlackHit({
+    required this.ip,
+    this.today = 0,
+    this.count = 0,
+    this.tag,
+    this.available,
+  });
+
+  final String ip;
+  final int today;
+  final int count;
+  final String? tag;
+  final int? available;
+
+  factory OpsRuntimeBlackHit.fromJson(Map<String, dynamic> json) {
+    return OpsRuntimeBlackHit(
+      ip: '${json['ip'] ?? ''}',
+      today: _asInt(json['today'], 0),
+      count: _asInt(json['count'], 0),
+      tag: json['tag']?.toString(),
+      available: _asIntOrNull(json['available']),
+    );
+  }
+}
+
+class OpsRuntimeTraffic {
+  const OpsRuntimeTraffic({
+    required this.available,
+    this.error,
+    this.requestTotal = 0,
+    this.approxQps = 0,
+    this.visitLogDay,
+    this.pageViewToday,
+    this.uniqueVisitorToday,
+    this.visitLogRowsToday,
+    this.visitLogError,
+  });
+
+  final bool available;
+  final String? error;
+  final int requestTotal;
+  final double approxQps;
+  final String? visitLogDay;
+  final int? pageViewToday;
+  final int? uniqueVisitorToday;
+  final int? visitLogRowsToday;
+  final String? visitLogError;
+
+  factory OpsRuntimeTraffic.fromJson(Map<String, dynamic> json) {
+    return OpsRuntimeTraffic(
+      available: json['available'] != false,
+      error: json['error']?.toString(),
+      requestTotal: _asInt(json['requestTotal'], 0),
+      approxQps: _asDouble(json['approxQps']) ?? 0,
+      visitLogDay: json['visitLogDay']?.toString(),
+      pageViewToday: _asIntOrNull(json['pageViewToday']),
+      uniqueVisitorToday: _asIntOrNull(json['uniqueVisitorToday']),
+      visitLogRowsToday: _asIntOrNull(json['visitLogRowsToday']),
+      visitLogError: json['visitLogError']?.toString(),
+    );
+  }
+}
+
+class OpsRuntimeRedis {
+  const OpsRuntimeRedis({
+    required this.enabled,
+    required this.available,
+    this.error,
+    this.version,
+    this.connectedClients,
+    this.usedMemory,
+    this.keyCount,
+    this.usedMemoryBytes,
+  });
+
+  final bool enabled;
+  final bool available;
+  final String? error;
+  final String? version;
+  final String? connectedClients;
+  final String? usedMemory;
+  final int? keyCount;
+  final int? usedMemoryBytes;
+
+  factory OpsRuntimeRedis.fromJson(Map<String, dynamic> json) {
+    return OpsRuntimeRedis(
+      enabled: json['enabled'] == true,
+      available: json['available'] == true,
+      error: json['error']?.toString(),
+      version: json['version']?.toString(),
+      connectedClients: json['connected_clients']?.toString(),
+      usedMemory: json['used_memory']?.toString(),
+      keyCount: _asIntOrNull(json['keyCount']),
+      usedMemoryBytes: _asIntOrNull(json['usedMemoryBytes']),
+    );
+  }
+}
+
+class OpsRuntimePaths {
+  const OpsRuntimePaths({
+    required this.available,
+    this.error,
+    this.items = const [],
+  });
+
+  final bool available;
+  final String? error;
+  final List<OpsRuntimePathItem> items;
+
+  factory OpsRuntimePaths.fromJson(Map<String, dynamic> json) {
+    final items = <OpsRuntimePathItem>[];
+    final raw = json['items'];
+    if (raw is List) {
+      for (final e in raw) {
+        if (e is Map) {
+          items.add(OpsRuntimePathItem.fromJson(Map<String, dynamic>.from(e)));
+        }
+      }
+    }
+    return OpsRuntimePaths(
+      available: json['available'] != false,
+      error: json['error']?.toString(),
+      items: items,
+    );
+  }
+}
+
+class OpsRuntimePathItem {
+  const OpsRuntimePathItem({required this.label, required this.path});
+
+  final String label;
+  final String path;
+
+  factory OpsRuntimePathItem.fromJson(Map<String, dynamic> json) {
+    return OpsRuntimePathItem(
+      label: '${json['label'] ?? ''}',
+      path: '${json['path'] ?? ''}',
+    );
+  }
+}
+
+int _asInt(dynamic v, int fallback) {
+  if (v is int) return v;
+  if (v is num) return v.toInt();
+  return int.tryParse('${v ?? ''}') ?? fallback;
+}
+
+int? _asIntOrNull(dynamic v) {
+  if (v == null) return null;
+  if (v is int) return v;
+  if (v is num) return v.toInt();
+  return int.tryParse('$v');
+}
+
+double? _asDouble(dynamic v) {
+  if (v == null) return null;
+  if (v is double) return v;
+  if (v is num) return v.toDouble();
+  return double.tryParse('$v');
+}
+
 class OpsCredentialBundle {
   const OpsCredentialBundle({
     required this.siteId,

@@ -7,9 +7,10 @@ import 'ops_backup_io.dart';
 import 'ops_fused_field.dart';
 import 'ops_ip_list_panel.dart';
 import 'ops_recovery_page.dart';
+import 'ops_runtime_panel.dart';
 import 'ops_site_io.dart';
 
-/// 单站点运维控制台：概览 / 管理 IP / 白名单 / 黑名单 / 证书。
+/// 单站点运维控制台：概览 / 运行 / 管理 IP / 白名单 / 黑名单 / 证书。
 class OpsManageSitePage extends StatefulWidget {
   const OpsManageSitePage({super.key, required this.siteId});
 
@@ -52,7 +53,7 @@ class _OpsManageSitePageState extends State<OpsManageSitePage>
   @override
   void initState() {
     super.initState();
-    _tabs = TabController(length: 5, vsync: this);
+    _tabs = TabController(length: 6, vsync: this);
     _load();
   }
 
@@ -558,13 +559,14 @@ class _OpsManageSitePageState extends State<OpsManageSitePage>
             ? null
             : TabBar(
                 controller: _tabs,
-                isScrollable: false,
-                tabAlignment: TabAlignment.fill,
-                labelPadding: EdgeInsets.zero,
+                isScrollable: true,
+                tabAlignment: TabAlignment.start,
+                labelPadding: const EdgeInsets.symmetric(horizontal: 14),
                 labelStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
                 unselectedLabelStyle: const TextStyle(fontSize: 13),
                 tabs: const [
                   Tab(text: '概览'),
+                  Tab(text: '运行'),
                   Tab(text: '管理IP'),
                   Tab(text: '白名单'),
                   Tab(text: '黑名单'),
@@ -609,6 +611,7 @@ class _OpsManageSitePageState extends State<OpsManageSitePage>
                     controller: _tabs,
                     children: [
                       _buildOverview(site),
+                      _buildRuntime(),
                       _buildAdminIp(),
                       _buildIpWhite(),
                       _buildIpBlack(),
@@ -695,6 +698,22 @@ class _OpsManageSitePageState extends State<OpsManageSitePage>
           label: const Text('丢钥 / 无法入驻时如何恢复'),
         ),
       ],
+    );
+  }
+
+  Widget _buildRuntime() {
+    return OpsRuntimePanel(
+      busy: _busy,
+      onBusyChanged: _setPanelBusy,
+      onToast: _toast,
+      loadSnapshot: () async {
+        final c = await _client();
+        if (c == null) {
+          throw StateError('站点未就绪');
+        }
+        await c.ensureSession();
+        return c.runtimeSnapshot();
+      },
     );
   }
 

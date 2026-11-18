@@ -235,6 +235,12 @@ class AutumnOpsClient {
   Future<Map<String, dynamic>> gateGet() =>
       _authedPost('/ops/api/v1/gate/get', {});
 
+  /// 运行状态快照（JVM/磁盘/库/防火墙/流量/Redis 等）。
+  Future<OpsRuntimeSnapshot> runtimeSnapshot() async {
+    final data = await _authedPost('/ops/api/v1/runtime/snapshot', {});
+    return OpsRuntimeSnapshot.fromJson(data);
+  }
+
   /// 校验清除确认令牌（无副作用）。
   Future<Map<String, dynamic>> gateVerifyClearToken(String clearToken) =>
       _authedPost('/ops/api/v1/gate/verifyClearToken', {

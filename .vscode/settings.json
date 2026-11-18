@@ -1,0 +1,23 @@
+{
+  "dart.flutterSdkPath": "/Users/mac/hamony/flutter",
+  "dart.projectSearchDepth": 4,
+  "dart.lineLength": 100,
+  "editor.formatOnSave": true,
+  "editor.rulers": [100],
+  "[dart]": {
+    "editor.defaultFormatter": "Dart-Code.dart-code",
+    "editor.formatOnSave": true,
+    "editor.selectionHighlight": false,
+    "editor.tabCompletion": "onlyInvalid",
+    "editor.wordBasedSuggestions": "off"
+  },
+  "files.exclude": {
+    "**/.dart_tool": true,
+    "**/build": true
+  },
+  "search.exclude": {
+    "**/.dart_tool": true,
+    "**/build": true,
+    "**/pubspec.lock": false
+  }
+}

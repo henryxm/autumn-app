@@ -11,11 +11,49 @@ dependencies:
     sdk: flutter
   autumn_ops_ui:
     path: ../packages/autumn_ops_ui
+  # 显式拉齐鸿蒙 federated 插件（与 chaoranxin / CPF-Flutter 一致）
+  path_provider:
+    git:
+      url: &flutter_packages_cpf_git https://gitcode.com/CPF-Flutter/flutter_packages.git
+      ref: &flutter_packages_cpf_ref master
+      path: packages/path_provider/path_provider
+  path_provider_ohos:
+    git:
+      url: *flutter_packages_cpf_git
+      ref: *flutter_packages_cpf_ref
+      path: packages/path_provider/path_provider_ohos
+  share_plus:
+    git:
+      url: &flutter_plus_plugins_cpf_git https://gitcode.com/CPF-Flutter/flutter_plus_plugins.git
+      ref: &flutter_plus_plugins_cpf_ref master
+      path: packages/share_plus/share_plus
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^5.0.0
+
+dependency_overrides:
+  path_provider:
+    git:
+      url: *flutter_packages_cpf_git
+      ref: *flutter_packages_cpf_ref
+      path: packages/path_provider/path_provider
+  path_provider_ohos:
+    git:
+      url: *flutter_packages_cpf_git
+      ref: *flutter_packages_cpf_ref
+      path: packages/path_provider/path_provider_ohos
+  share_plus:
+    git:
+      url: *flutter_plus_plugins_cpf_git
+      ref: *flutter_plus_plugins_cpf_ref
+      path: packages/share_plus/share_plus
+  share_plus_platform_interface:
+    git:
+      url: *flutter_plus_plugins_cpf_git
+      ref: *flutter_plus_plugins_cpf_ref
+      path: packages/share_plus/share_plus_platform_interface
 
 flutter:
   uses-material-design: true

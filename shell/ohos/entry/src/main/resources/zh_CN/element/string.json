@@ -1,0 +1,16 @@
+{
+  "string": [
+    {
+      "name": "module_desc",
+      "value": "Autumn 运维入口"
+    },
+    {
+      "name": "EntryAbility_desc",
+      "value": "Autumn Ops"
+    },
+    {
+      "name": "EntryAbility_label",
+      "value": "Autumn 运维"
+    }
+  ]
+}

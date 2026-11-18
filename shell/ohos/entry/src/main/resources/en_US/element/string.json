@@ -1,0 +1,16 @@
+{
+  "string": [
+    {
+      "name": "module_desc",
+      "value": "Autumn Ops entry"
+    },
+    {
+      "name": "EntryAbility_desc",
+      "value": "Autumn Ops"
+    },
+    {
+      "name": "EntryAbility_label",
+      "value": "Autumn Ops"
+    }
+  ]
+}

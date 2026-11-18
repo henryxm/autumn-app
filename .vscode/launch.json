@@ -1,0 +1,68 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "shell (debug)",
+      "request": "launch",
+      "type": "dart",
+      "cwd": "shell",
+      "program": "lib/main.dart"
+    },
+    {
+      "name": "shell · Android",
+      "request": "launch",
+      "type": "dart",
+      "cwd": "shell",
+      "program": "lib/main.dart",
+      "deviceId": "android"
+    },
+    {
+      "name": "shell · iOS",
+      "request": "launch",
+      "type": "dart",
+      "cwd": "shell",
+      "program": "lib/main.dart",
+      "deviceId": "ios"
+    },
+    {
+      "name": "shell · HarmonyOS",
+      "request": "launch",
+      "type": "dart",
+      "cwd": "shell",
+      "program": "lib/main.dart",
+      "deviceId": "ohos"
+    },
+    {
+      "name": "shell · macOS",
+      "request": "launch",
+      "type": "dart",
+      "cwd": "shell",
+      "program": "lib/main.dart",
+      "deviceId": "macos"
+    },
+    {
+      "name": "shell · Chrome",
+      "request": "launch",
+      "type": "dart",
+      "cwd": "shell",
+      "program": "lib/main.dart",
+      "deviceId": "chrome"
+    },
+    {
+      "name": "shell (profile)",
+      "request": "launch",
+      "type": "dart",
+      "cwd": "shell",
+      "program": "lib/main.dart",
+      "flutterMode": "profile"
+    },
+    {
+      "name": "shell (release)",
+      "request": "launch",
+      "type": "dart",
+      "cwd": "shell",
+      "program": "lib/main.dart",
+      "flutterMode": "release"
+    }
+  ]
+}

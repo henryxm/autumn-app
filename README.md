@@ -7,24 +7,90 @@ Autumn 运维证书**独立客户端**（协议 lib + UI lib + Flutter 启动壳
 
 ```text
 autumn-app/
-  packages/autumn_ops/      # 协议客户端（probe/enroll/session/adminip/gate/ipwhite/ipblack）
+  packages/autumn_ops/      # 协议客户端
   packages/autumn_ops_ui/   # Material 多站点列表/添加/管理
-  shell/                    # 独立 Flutter App 壳（cn.org.autumn.ops）
+  shell/                    # Flutter 壳（Android / iOS / HarmonyOS / macOS / Web）
+  .vscode/                  # Cursor 调试配置
 ```
 
-产品 App（超然信 / XSign / XSVideo）暂不内嵌；运维使用本壳打包运行。
+统一包名 / Bundle ID：`cn.org.autumn.ops`
 
-## 环境
+## 环境（对齐 chaoranxin_flutter）
 
-需要本机 Flutter SDK（`^3.6`）。
+| 工具 | 本机约定 |
+|------|----------|
+| Flutter SDK | `/Users/mac/hamony/flutter`（OHOS 定制，亦可编 Android/iOS） |
+| Android SDK | `/Users/mac/Library/Android/sdk` |
+| Xcode | 15+ |
+| DevEco Studio | 鸿蒙 SDK + 签名（`shell/ohos/local.properties`） |
+
+```bash
+export PATH="/Users/mac/hamony/flutter/bin:$PATH"
+export LANG=en_US.UTF-8   # CocoaPods 需要 UTF-8
+
+cd shell
+flutter pub get
+```
+
+鸿蒙依赖走 CPF-Flutter（与超然信相同）：`path_provider` / `path_provider_ohos` / `share_plus`。
+
+## Android Studio（对齐 chaoranxin_flutter）
+
+超然信是打开 **`crchat_flutter/`**（有 `pubspec.yaml` 的应用目录），不是上一级仓库根。  
+本仓同理：**请打开 `shell/`，不要打开 `autumn-app/` 根目录**。
+
+```bash
+# 推荐：打开 shell（有 pubspec.yaml 的 Flutter 工程根）
+open -a "Android Studio" "$(pwd)/shell"
+
+# 或 File → Open → 选本仓下的 shell/
+```
+
+打开正确后应出现：Flutter 设备栏（Android / iOS / macOS / Chrome…）、`main.dart` 运行配置、Run/Debug、Pub get 等工具条。
+
+| 工程 | 应对齐打开的目录 |
+|------|------------------|
+| 超然信 | `chaoranxin_flutter/crchat_flutter` |
+| Autumn 运维 | `autumn-app/shell` |
+
+鸿蒙调试用 **DevEco Studio** 打开 `shell/ohos`（Android Studio 不跑 ohos 设备）。
+
+## Cursor 调试
+
+Cursor 可用仓库根目录（已配 `.vscode`）。Run and Debug：
+
+| 配置 | 说明 |
+|------|------|
+| **shell · Android** | 当前 Android 设备 |
+| **shell · iOS** | 当前 iOS 设备 |
+| **shell · HarmonyOS** | 当前 ohos 设备（需 DevEco 签名） |
+| **shell · macOS** / **Chrome** | 本机快速联调 |
+
+## 命令行
 
 ```bash
 cd shell
-flutter pub get
-flutter run
+
+# Android
+flutter run -d android
 flutter build apk
-# flutter build ipa   # 需本机签名
+
+# iOS（本机已配 DEVELOPMENT_TEAM）
+flutter run -d ios
+flutter build ios --no-codesign   # 仅编译校验
+
+# HarmonyOS（需连接鸿蒙设备或模拟器，并在 DevEco 配置签名）
+flutter run -d ohos
+flutter build hap
+
+# 本机
+flutter run -d macos
 ```
+
+### Harmony 签名
+
+`shell/ohos/build-profile.json5` 的 `signingConfigs` 默认为空。  
+首次真机调试请在 DevEco 打开 `shell/ohos`，为 `cn.org.autumn.ops` 配置自动签名或手动证书后 Sync；勿直接复用超然信 `com.chaoranxin.chat` 证书。
 
 ## 依赖关系
 

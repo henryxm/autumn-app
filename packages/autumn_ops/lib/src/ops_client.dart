@@ -63,6 +63,37 @@ class AutumnOpsClient {
       },
     );
     final enrolled = OpsEnrollResult.fromJson(_unwrap(res.data));
+    await _persistEnrolled(enrolled, pubPem, priPem, label);
+    return enrolled;
+  }
+
+  /// 新设备：凭已登录设备签发的认领码入驻（本地生成独立密钥对）。
+  Future<OpsEnrollResult> claim({
+    required String claimSecret,
+    String label = 'flutter',
+  }) async {
+    final pair = OpsCrypto.generateRsa2048();
+    final pubPem = OpsCrypto.publicKeyToPem(pair.publicKey);
+    final priPem = OpsCrypto.privateKeyToPem(pair.privateKey);
+    final res = await _dio.post<Map<String, dynamic>>(
+      '$root/ops/api/v1/cert/claim',
+      data: {
+        'claimSecret': claimSecret,
+        'clientPublicKey': OpsCrypto.stripPem(pubPem),
+        'label': label,
+      },
+    );
+    final enrolled = OpsEnrollResult.fromJson(_unwrap(res.data));
+    await _persistEnrolled(enrolled, pubPem, priPem, label);
+    return enrolled;
+  }
+
+  Future<void> _persistEnrolled(
+    OpsEnrollResult enrolled,
+    String pubPem,
+    String priPem,
+    String label,
+  ) async {
     final bundle = OpsCredentialBundle(
       siteId: enrolled.siteId,
       certId: enrolled.certId,
@@ -75,7 +106,7 @@ class AutumnOpsClient {
     );
     await store.save(bundle);
     _bundle = bundle;
-    return enrolled;
+    _sessionId = null;
   }
 
   Future<void> ensureSession() async {
@@ -107,8 +138,13 @@ class AutumnOpsClient {
     }
   }
 
-  Future<Map<String, dynamic>> adminIpList() =>
-      _authedPost('/ops/api/v1/adminip/list', {});
+  Future<OpsIpPage> adminIpList({int page = 1, int limit = 20}) async {
+    final data = await _authedPost('/ops/api/v1/adminip/list', {
+      'page': page,
+      'limit': limit,
+    });
+    return OpsIpPage.fromJson(data);
+  }
 
   Future<Map<String, dynamic>> adminIpAdd({String? ip, bool claimCurrent = false}) =>
       _authedPost('/ops/api/v1/adminip/add', {
@@ -122,11 +158,22 @@ class AutumnOpsClient {
         if (clearToken != null && clearToken.isNotEmpty) 'clearToken': clearToken,
       });
 
+  Future<Map<String, dynamic>> adminIpSetForbidden(String ip, {required bool forbidden}) =>
+      _authedPost('/ops/api/v1/adminip/setForbidden', {
+        'ip': ip,
+        'forbidden': forbidden ? 1 : 0,
+      });
+
   Future<Map<String, dynamic>> currentIp() =>
       _authedPost('/ops/api/v1/currentIp', {});
 
-  Future<Map<String, dynamic>> ipWhiteList() =>
-      _authedPost('/ops/api/v1/ipwhite/list', {});
+  Future<OpsIpPage> ipWhiteList({int page = 1, int limit = 20}) async {
+    final data = await _authedPost('/ops/api/v1/ipwhite/list', {
+      'page': page,
+      'limit': limit,
+    });
+    return OpsIpPage.fromJson(data);
+  }
 
   Future<Map<String, dynamic>> ipWhiteAdd({String? ip, bool claimCurrent = false}) =>
       _authedPost('/ops/api/v1/ipwhite/add', {
@@ -140,8 +187,19 @@ class AutumnOpsClient {
         if (clearToken != null && clearToken.isNotEmpty) 'clearToken': clearToken,
       });
 
-  Future<Map<String, dynamic>> ipBlackList() =>
-      _authedPost('/ops/api/v1/ipblack/list', {});
+  Future<Map<String, dynamic>> ipWhiteSetForbidden(String ip, {required bool forbidden}) =>
+      _authedPost('/ops/api/v1/ipwhite/setForbidden', {
+        'ip': ip,
+        'forbidden': forbidden ? 1 : 0,
+      });
+
+  Future<OpsIpPage> ipBlackList({int page = 1, int limit = 20}) async {
+    final data = await _authedPost('/ops/api/v1/ipblack/list', {
+      'page': page,
+      'limit': limit,
+    });
+    return OpsIpPage.fromJson(data);
+  }
 
   Future<Map<String, dynamic>> ipBlackAdd(String ip) =>
       _authedPost('/ops/api/v1/ipblack/add', {'ip': ip});
@@ -149,8 +207,30 @@ class AutumnOpsClient {
   Future<Map<String, dynamic>> ipBlackRemove(String ip) =>
       _authedPost('/ops/api/v1/ipblack/remove', {'ip': ip});
 
+  Future<Map<String, dynamic>> ipBlackSetAvailable(String ip, {required bool available}) =>
+      _authedPost('/ops/api/v1/ipblack/setAvailable', {
+        'ip': ip,
+        'available': available ? 1 : 0,
+      });
+
   Future<Map<String, dynamic>> gateGet() =>
       _authedPost('/ops/api/v1/gate/get', {});
+
+  /// 校验清除确认令牌（无副作用）。
+  Future<Map<String, dynamic>> gateVerifyClearToken(String clearToken) =>
+      _authedPost('/ops/api/v1/gate/verifyClearToken', {
+        'clearToken': clearToken,
+      });
+
+  /// 配置或修改清除确认令牌。未配置时可直接设置；已配置须传 [oldClearToken]。
+  Future<Map<String, dynamic>> gateSetClearToken(
+    String clearToken, {
+    String? oldClearToken,
+  }) =>
+      _authedPost('/ops/api/v1/gate/setClearToken', {
+        'clearToken': clearToken,
+        if (oldClearToken != null && oldClearToken.isNotEmpty) 'oldClearToken': oldClearToken,
+      });
 
   Future<Map<String, dynamic>> gateSetAdminIpEnable({
     required bool enable,
@@ -164,8 +244,18 @@ class AutumnOpsClient {
   Future<Map<String, dynamic>> certList() =>
       _authedPost('/ops/api/v1/cert/list', {});
 
-  Future<Map<String, dynamic>> certRevoke(String certId) =>
-      _authedPost('/ops/api/v1/cert/revoke', {'certId': certId});
+  /// 已登录设备签发一次性认领码（明文仅本次返回）。
+  Future<OpsClaimIssueResult> certIssue({String label = 'ops-device'}) async {
+    final data = await _authedPost('/ops/api/v1/cert/issue', {
+      'label': label,
+    });
+    return OpsClaimIssueResult.fromJson(data);
+  }
+
+  Future<OpsRevokeResult> certRevoke(String certId) async {
+    final data = await _authedPost('/ops/api/v1/cert/revoke', {'certId': certId});
+    return OpsRevokeResult.fromJson(data);
+  }
 
   Future<OpsCredentialBundle?> currentBundle() => store.load();
 

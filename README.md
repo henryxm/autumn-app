@@ -92,13 +92,20 @@ flutter run -d macos
 `shell/ohos/build-profile.json5` 的 `signingConfigs` 默认为空。  
 首次真机调试请在 DevEco 打开 `shell/ohos`，为 `cn.org.autumn.ops` 配置自动签名或手动证书后 Sync；勿直接复用超然信 `com.chaoranxin.chat` 证书。
 
+### 多设备与恢复（协议摘要）
+
+1. **首次**：探测 → 粘贴服务器日志 `OpsEnroll secret=` → 入驻。  
+2. **第二台起**：已登录设备在「证书」页签发认领码 → 新设备添加站点 →「认领码入驻」。  
+3. **同证备份/换机**：已登录设备在「证书」页设分享口令并导出 → 新手机首页「+」探测同一地址 →「备份导入」（共享同一 certId）。管理页「覆盖导入」仅用于本机重装后写回当前站点。  
+4. **唯一设备丢失**：wall 重置运维证书（需 clearToken）或 DB 清空 `SECURITY_OPS_CERT_CONFIG` 后重启 → 新 OpsEnroll 再入驻。
+
 ## 依赖关系
 
 ```text
 shell → autumn_ops_ui → autumn_ops
 ```
 
-本地证书落在本 App 沙盒 `Application Support/autumn_ops/`；与产品 App 不共享。可通过管理页「导出口令包 → 导入」迁移。
+本地证书落在本 App 沙盒 `Application Support/autumn_ops/`；与产品 App 不共享。换机：管理页导出 → 新设备「+」备份导入。
 
 ## 添加站点 · 地址探测
 

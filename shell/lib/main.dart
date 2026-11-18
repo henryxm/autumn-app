@@ -17,6 +17,11 @@ class AutumnOpsShellApp extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF1565C0)),
         useMaterial3: true,
       ),
+      builder: (context, child) {
+        return OpsKeyboardDismiss(
+          child: child ?? const SizedBox.shrink(),
+        );
+      },
       home: const AutumnOpsHome(),
     );
   }

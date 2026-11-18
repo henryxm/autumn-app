@@ -132,7 +132,7 @@ class OpsEndpoint {
         baseUrl: '',
         outcome: OpsProbeOutcome(
           kind: OpsProbeKind.network,
-          message: 'Empty site address',
+          message: '站点地址为空',
         ),
         tried: [],
       );

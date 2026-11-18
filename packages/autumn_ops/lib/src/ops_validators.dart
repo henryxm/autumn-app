@@ -114,8 +114,16 @@ class OpsValidators {
     return const OpsValidateResult.ok();
   }
 
+  /// 黑名单策略哨兵（服务端存自动拉黑阈值，不是真实客户端）。
+  static const policyBlackIp = '0.0.0.0';
+
   /// 管理 IP / 白名单 / 黑名单：单 IP 或 IPv4 CIDR（如 192.168.1.0/24）。
-  static OpsValidateResult wallIp(String raw, {bool allowCidr = true}) {
+  /// [rejectPolicyBlackIp] 为 true 时拒绝 0.0.0.0（黑名单添加场景）。
+  static OpsValidateResult wallIp(
+    String raw, {
+    bool allowCidr = true,
+    bool rejectPolicyBlackIp = false,
+  }) {
     final s = raw.trim();
     if (s.isEmpty) {
       return const OpsValidateResult.fail('请填写 IP 地址');
@@ -125,6 +133,11 @@ class OpsValidators {
     }
     if (RegExp(r'\s').hasMatch(s)) {
       return const OpsValidateResult.fail('IP 地址不能包含空格');
+    }
+    if (rejectPolicyBlackIp && s == policyBlackIp) {
+      return const OpsValidateResult.fail(
+        '0.0.0.0 是自动拉黑阈值的策略配置，请用「黑名单阈值」修改，不能当作普通 IP 添加',
+      );
     }
 
     // 去掉 IPv6 方括号
@@ -182,17 +195,17 @@ class OpsValidators {
     return const OpsValidateResult.ok();
   }
 
-  /// 备份密文（导入）。
+  /// 备份密文（`.ops` 内 wrapped 字段或旧版纯 Base64）。
   static OpsValidateResult backupBlob(String raw) {
     final s = raw.trim();
     if (s.isEmpty) {
-      return const OpsValidateResult.fail('请粘贴备份密文');
+      return const OpsValidateResult.fail('备份内容为空，请重新选择 .ops 文件');
     }
     if (s.length < 32) {
-      return const OpsValidateResult.fail('备份密文过短，请确认完整粘贴');
+      return const OpsValidateResult.fail('备份内容过短，请确认选择了完整的 .ops 文件');
     }
     if (s.length > 200000) {
-      return const OpsValidateResult.fail('备份密文过长');
+      return const OpsValidateResult.fail('备份内容过长');
     }
     return const OpsValidateResult.ok();
   }

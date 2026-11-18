@@ -1,11 +1,10 @@
-import 'dart:io';
-
 import 'package:autumn_ops/autumn_ops.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 
+import 'ops_backup_io.dart';
+import 'ops_fused_field.dart';
 import 'ops_ip_list_panel.dart';
 import 'ops_recovery_page.dart';
 import 'ops_site_io.dart';
@@ -986,7 +985,9 @@ class _OpsManageSitePageState extends State<OpsManageSitePage>
   Widget _buildIpBlack() {
     return OpsIpListPanel(
       title: '用户黑名单',
-      description: '防火墙黑名单：生效后直接拒绝访问。停用可保留记录而不再拦截。',
+      description:
+          '防火墙黑名单：生效后直接拒绝访问。停用可保留记录而不再拦截。'
+          '「0.0.0.0」不是普通 IP，而是服务端存放自动拉黑阈值的策略行（列表已隐藏）；请用上方阈值修改。',
       statusMode: OpsIpStatusMode.available,
       currentIp: _currentIp,
       busy: _busy,
@@ -994,7 +995,13 @@ class _OpsManageSitePageState extends State<OpsManageSitePage>
       onToast: _toast,
       allowClaimCurrent: false,
       requireClearTokenForCurrent: false,
-      ipInputHint: '请输入黑名单 IP',
+      ipInputHint: '请输入黑名单 IP（勿填 0.0.0.0）',
+      header: _IpBlackFirewallCountBar(
+        busy: _busy,
+        onBusyChanged: _setPanelBusy,
+        onToast: _toast,
+        client: _client,
+      ),
       loadPage: ({required int page, required int limit}) async {
         final c = await _client();
         await c!.ensureSession();
@@ -1003,7 +1010,7 @@ class _OpsManageSitePageState extends State<OpsManageSitePage>
       onAdd: ({String? ip, bool claimCurrent = false}) async {
         final c = await _client();
         final target = (ip ?? '').trim();
-        final check = OpsValidators.wallIp(target);
+        final check = OpsValidators.wallIp(target, rejectPolicyBlackIp: true);
         if (!check.ok) {
           throw StateError(check.error!);
         }
@@ -1016,12 +1023,13 @@ class _OpsManageSitePageState extends State<OpsManageSitePage>
       },
       onToggle: (ip, {required bool enable}) async {
         final c = await _client();
-        await c!.ipBlackSetAvailable(ip, available: enable);
+        // wall：available=0 生效，1 停用
+        await c!.ipBlackSetAvailable(ip, available: enable ? 0 : 1);
       },
     );
   }
 
-  /// 左侧输入 + 右侧动作，与 IP / 令牌栏同一视觉语言。
+  /// 左侧输入 + 右侧动作，与 IP / 令牌 / 添加站点同一视觉语言。
   Widget _fusedFieldAction({
     required TextEditingController controller,
     required String hintText,
@@ -1030,58 +1038,14 @@ class _OpsManageSitePageState extends State<OpsManageSitePage>
     bool obscure = false,
     TextInputType? keyboardType,
   }) {
-    final scheme = Theme.of(context).colorScheme;
-    return Material(
-      color: scheme.surface,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: BorderSide(color: scheme.outlineVariant),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: SizedBox(
-        height: 52,
-        child: Row(
-          children: [
-            Expanded(
-              child: TextField(
-                controller: controller,
-                obscureText: obscure,
-                enabled: !_busy,
-                keyboardType: keyboardType,
-                textInputAction: TextInputAction.done,
-                onSubmitted: (_) {
-                  if (onAction != null) onAction();
-                },
-                style: const TextStyle(fontSize: 15, height: 1.2),
-                decoration: InputDecoration(
-                  hintText: hintText,
-                  hintStyle: TextStyle(color: scheme.onSurfaceVariant.withValues(alpha: 0.7)),
-                  border: InputBorder.none,
-                  enabledBorder: InputBorder.none,
-                  focusedBorder: InputBorder.none,
-                  disabledBorder: InputBorder.none,
-                  isDense: true,
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
-                ),
-              ),
-            ),
-            Container(width: 1, height: double.infinity, color: scheme.outlineVariant),
-            SizedBox(
-              height: double.infinity,
-              child: TextButton(
-                onPressed: onAction,
-                style: TextButton.styleFrom(
-                  foregroundColor: scheme.primary,
-                  disabledForegroundColor: scheme.onSurface.withValues(alpha: 0.38),
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  shape: const RoundedRectangleBorder(),
-                ),
-                child: Text(actionLabel, style: const TextStyle(fontWeight: FontWeight.w600)),
-              ),
-            ),
-          ],
-        ),
-      ),
+    return OpsFusedFieldAction(
+      controller: controller,
+      hintText: hintText,
+      actionLabel: actionLabel,
+      onAction: onAction,
+      enabled: !_busy,
+      obscure: obscure,
+      keyboardType: keyboardType,
     );
   }
 
@@ -1108,17 +1072,13 @@ class _OpsManageSitePageState extends State<OpsManageSitePage>
       return;
     }
     await _run(() async {
-      final pass = _passCtrl.text.trim();
       final c = await _client();
-      final wrapped = await c!.exportWrapped(pass);
-      final dir = await getTemporaryDirectory();
-      final f = File('${dir.path}/autumn-ops-${site.id}.ops');
-      await f.writeAsString(wrapped);
-      await Share.shareXFiles(
-        [XFile(f.path)],
-        text: 'Autumn 运维证书备份（解密须使用导出时的分享口令）',
+      await exportOpsBackupFile(
+        client: c!,
+        passphrase: _passCtrl.text.trim(),
+        site: site,
       );
-      _toast('已导出备份');
+      _toast('已导出 .ops 文件，请用系统分享发给新手机');
     });
   }
 
@@ -1128,17 +1088,16 @@ class _OpsManageSitePageState extends State<OpsManageSitePage>
       _toast(passCheck.error!);
       return;
     }
+    final picked = await pickOpsBackupFile();
+    if (picked.cancelled) return;
+    if (!picked.ok) {
+      _toast(picked.error ?? '选择备份失败');
+      return;
+    }
     await _run(() async {
       final pass = _passCtrl.text.trim();
-      final wrapped = await _promptImport(context);
-      if (wrapped == null) return;
-      final blobCheck = OpsValidators.backupBlob(wrapped);
-      if (!blobCheck.ok) {
-        _toast(blobCheck.error!);
-        return;
-      }
       final c = await _client();
-      await c!.importWrapped(wrapped.trim(), pass);
+      await c!.importWrapped(picked.file!.wrapped, pass);
       site.enrolled = true;
       final b = await c.currentBundle();
       if (b != null) {
@@ -1147,7 +1106,7 @@ class _OpsManageSitePageState extends State<OpsManageSitePage>
         site.serverFingerprint = b.serverFingerprint;
       }
       await _store!.upsertSite(site);
-      _toast('已导入');
+      _toast('已从 ${picked.displayName} 覆盖导入');
       await _refreshRemote();
     });
   }
@@ -1221,21 +1180,16 @@ class _OpsManageSitePageState extends State<OpsManageSitePage>
         ),
         const SizedBox(height: 12),
         _sectionCard(
-          title: '签发新设备（推荐）',
-          body: '给同事/新手机单独入驻时用这一步：左侧「设备标签」只是备注名（会出现在上方设备列表），'
-              '右侧「签发」生成一次性认领码。新设备在「添加站点」里选认领码入驻并自建密钥；'
-              '认领码约 30 分钟有效，私钥不会经本机转发。',
+          title: '① 签发认领码（给同事 / 新设备）',
+          body: '新设备会自建密钥，可单独吊销。流程：本页签发 → 把认领码发给对方 →'
+              '对方首页「+」探测同一地址 → 选「认领码」粘贴。约 30 分钟有效，一次性。'
+              '「设备标签」只是备注名，不是认领码。',
           children: [
             _fusedFieldAction(
               controller: _issueLabelCtrl,
               hintText: '设备标签（选填，如：办公室平板）',
-              actionLabel: '签发',
+              actionLabel: '签发认领码',
               onAction: _busy ? null : _issueClaimCode,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              '标签 ≠ 认领码：标签给人看；认领码才是新设备入驻时粘贴的密钥口令。',
-              style: TextStyle(fontSize: 12, height: 1.4, color: scheme.onSurfaceVariant),
             ),
             if (_lastIssue != null) ...[
               const SizedBox(height: 12),
@@ -1250,9 +1204,8 @@ class _OpsManageSitePageState extends State<OpsManageSitePage>
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      '认领码已生成'
-                      '${(_lastIssue!.label ?? '').isNotEmpty ? ' · 标签 ${_lastIssue!.label}' : ''}'
-                      '（仅显示一次）',
+                      '认领码（仅显示一次）'
+                      '${(_lastIssue!.label ?? '').isNotEmpty ? ' · ${_lastIssue!.label}' : ''}',
                       style: const TextStyle(fontWeight: FontWeight.w600),
                     ),
                     const SizedBox(height: 8),
@@ -1273,20 +1226,21 @@ class _OpsManageSitePageState extends State<OpsManageSitePage>
                             _toast('已复制认领码');
                           },
                           icon: const Icon(Icons.copy, size: 18),
-                          label: const Text('复制认领码'),
+                          label: const Text('复制'),
                         ),
                         OutlinedButton.icon(
                           onPressed: () async {
                             await Share.share(
-                              'Autumn 运维认领码（约 30 分钟有效）\n'
-                              '站点：${site.baseUrl}\n'
-                              '设备标签：${_lastIssue!.label ?? '新设备'}\n'
-                              '认领码：${_lastIssue!.claimSecret}\n'
-                              '请在新设备打开 Autumn 运维 → 添加站点 → 探测后选择「认领码入驻」。',
+                              '【Autumn 运维 · 认领码】约 30 分钟有效\n'
+                              '1. 打开 Autumn 运维 → 右上角「+」\n'
+                              '2. 填写站点：${site.baseUrl}\n'
+                              '3. 点「探测」→ 选「认领码」\n'
+                              '4. 粘贴认领码：${_lastIssue!.claimSecret}\n'
+                              '（这是文字口令，不是 .ops 备份文件）',
                             );
                           },
                           icon: const Icon(Icons.ios_share, size: 18),
-                          label: const Text('分享给新设备'),
+                          label: const Text('分享步骤+认领码'),
                         ),
                       ],
                     ),
@@ -1298,21 +1252,21 @@ class _OpsManageSitePageState extends State<OpsManageSitePage>
         ),
         const SizedBox(height: 12),
         _sectionCard(
-          title: '本机证书备份（同证迁移）',
-          body: '换机：本页设分享口令并「导出」→ 新手机首页「+」探测同一地址 →「备份导入」（同一 certId）。'
-              '给同事单独一台机请用上方「签发」，不要用导出。',
+          title: '② 导出 .ops 备份（换机 / 同证迁移）',
+          body: '把本机证书打成 .ops 文件带走（同一 certId）。'
+              '流程：设分享口令 → 导出并分享文件 → 新手机「+」探测同一地址 →「换机备份」→ 选该文件并填同一口令。'
+              '口令只用于加密文件，不会写入文件、也不会上传。给同事单独一台机请用上方①，不要用导出。',
           children: [
             _fusedFieldAction(
               controller: _passCtrl,
-              hintText: '分享口令（导出加密 / 本机覆盖导入解密）',
-              actionLabel: '导出',
+              hintText: '分享口令（导出加密，导入时再输入）',
+              actionLabel: '导出 .ops',
               obscure: true,
               onAction: _busy ? null : () => _exportBackup(site),
             ),
             const SizedBox(height: 8),
             Text(
-              '口令不上传服务器；丢失则备份无法解开。'
-              '下方「覆盖导入」仅用于本机重装后写回当前站点；新手机请走首页「+」。',
+              '本机重装后也可在此用同一口令「选文件覆盖导入」。新手机务必走首页「+」。',
               style: TextStyle(fontSize: 12, height: 1.4, color: scheme.onSurfaceVariant),
             ),
             const SizedBox(height: 10),
@@ -1320,8 +1274,8 @@ class _OpsManageSitePageState extends State<OpsManageSitePage>
               width: double.infinity,
               child: OutlinedButton.icon(
                 onPressed: _busy ? null : () => _importBackup(site),
-                icon: const Icon(Icons.file_download_outlined, size: 18),
-                label: const Text('覆盖导入到本站点'),
+                icon: const Icon(Icons.folder_open, size: 18),
+                label: const Text('选 .ops 文件覆盖到本站点'),
               ),
             ),
             const SizedBox(height: 4),
@@ -1355,40 +1309,6 @@ class _OpsManageSitePageState extends State<OpsManageSitePage>
       ],
     );
   }
-
-  Future<String?> _promptImport(BuildContext context) async {
-    final ctrl = TextEditingController();
-    final result = await showDialog<String>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('粘贴备份密文'),
-        content: TextField(
-          controller: ctrl,
-          maxLines: 6,
-          decoration: const InputDecoration(
-            hintText: '粘贴导出的口令包裹内容',
-            border: OutlineInputBorder(),
-          ),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('取消')),
-          FilledButton(
-            onPressed: () {
-              final check = OpsValidators.backupBlob(ctrl.text);
-              if (!check.ok) {
-                ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(content: Text(check.error!)));
-                return;
-              }
-              Navigator.pop(ctx, ctrl.text.trim());
-            },
-            child: const Text('导入'),
-          ),
-        ],
-      ),
-    );
-    ctrl.dispose();
-    return result;
-  }
 }
 
 enum _ClearTokenUiStatus {
@@ -1399,4 +1319,107 @@ enum _ClearTokenUiStatus {
   saved,
   ready,
   error,
+}
+
+/// 黑名单 Tab 顶部：自动拉黑阈值（同源 wall「黑名单阈值」/ 策略行 0.0.0.0）。
+class _IpBlackFirewallCountBar extends StatefulWidget {
+  const _IpBlackFirewallCountBar({
+    required this.busy,
+    required this.onBusyChanged,
+    required this.onToast,
+    required this.client,
+  });
+
+  final bool busy;
+  final ValueChanged<bool> onBusyChanged;
+  final ValueChanged<String> onToast;
+  final Future<AutumnOpsClient?> Function() client;
+
+  @override
+  State<_IpBlackFirewallCountBar> createState() => _IpBlackFirewallCountBarState();
+}
+
+class _IpBlackFirewallCountBarState extends State<_IpBlackFirewallCountBar> {
+  final _ctrl = TextEditingController();
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _load() async {
+    setState(() => _loading = true);
+    try {
+      final c = await widget.client();
+      await c!.ensureSession();
+      final n = await c.ipBlackFirewallCount();
+      if (!mounted) return;
+      _ctrl.text = '$n';
+    } catch (e) {
+      if (mounted) widget.onToast(OpsErrorMessage.of(e));
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _save() async {
+    if (widget.busy || _loading) return;
+    final raw = _ctrl.text.trim();
+    final n = int.tryParse(raw);
+    if (n == null || n < 500) {
+      widget.onToast('阈值须为不小于 500 的整数');
+      return;
+    }
+    widget.onBusyChanged(true);
+    try {
+      final c = await widget.client();
+      final saved = await c!.ipBlackSetFirewallCount(n);
+      if (!mounted) return;
+      _ctrl.text = '$saved';
+      widget.onToast('已保存黑名单阈值：$saved 次/刷新周期');
+    } catch (e) {
+      widget.onToast(OpsErrorMessage.of(e));
+    } finally {
+      widget.onBusyChanged(false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '自动拉黑阈值（策略 0.0.0.0）',
+            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: scheme.onSurface),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            '同一刷新周期内访问超过该次数将自动加入黑名单。最小值 500。',
+            style: TextStyle(fontSize: 12, height: 1.35, color: scheme.onSurfaceVariant),
+          ),
+          const SizedBox(height: 8),
+          OpsFusedFieldAction(
+            controller: _ctrl,
+            hintText: '例如 1000',
+            actionLabel: _loading ? '…' : '保存',
+            enabled: !widget.busy && !_loading,
+            keyboardType: TextInputType.number,
+            onAction: widget.busy || _loading ? null : _save,
+          ),
+        ],
+      ),
+    );
+  }
 }

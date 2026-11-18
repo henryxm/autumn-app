@@ -207,11 +207,30 @@ class AutumnOpsClient {
   Future<Map<String, dynamic>> ipBlackRemove(String ip) =>
       _authedPost('/ops/api/v1/ipblack/remove', {'ip': ip});
 
-  Future<Map<String, dynamic>> ipBlackSetAvailable(String ip, {required bool available}) =>
+  /// [available]：`0` 生效拦截，`1` 停用（与 wall 一致）。
+  Future<Map<String, dynamic>> ipBlackSetAvailable(String ip, {required int available}) =>
       _authedPost('/ops/api/v1/ipblack/setAvailable', {
         'ip': ip,
-        'available': available ? 1 : 0,
+        'available': available,
       });
+
+  Future<int> ipBlackFirewallCount() async {
+    final data = await _authedPost('/ops/api/v1/ipblack/firewallCount/get', {});
+    final v = data['firewallCount'];
+    if (v is int) return v;
+    if (v is num) return v.toInt();
+    return int.tryParse('$v') ?? 0;
+  }
+
+  Future<int> ipBlackSetFirewallCount(int count) async {
+    final data = await _authedPost('/ops/api/v1/ipblack/firewallCount/set', {
+      'count': count,
+    });
+    final v = data['firewallCount'];
+    if (v is int) return v;
+    if (v is num) return v.toInt();
+    return int.tryParse('$v') ?? count;
+  }
 
   Future<Map<String, dynamic>> gateGet() =>
       _authedPost('/ops/api/v1/gate/get', {});

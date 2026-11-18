@@ -96,7 +96,7 @@ flutter run -d macos
 
 1. **首次**：探测 → 粘贴服务器日志 `OpsEnroll secret=` → 入驻。  
 2. **第二台起**：已登录设备在「证书」页签发认领码 → 新设备添加站点 →「认领码入驻」。  
-3. **同证备份/换机**：已登录设备在「证书」页设分享口令并导出 → 新手机首页「+」探测同一地址 →「备份导入」（共享同一 certId）。管理页「覆盖导入」仅用于本机重装后写回当前站点。  
+3. **同证备份/换机**：已登录设备在「证书」页设分享口令 → 导出 `.ops` 文件并分享 → 新手机「+」探测同一地址 →「换机备份」→ **选择该文件**并填同一口令（共享同一 certId）。勿与「认领码」（文字）混淆。  
 4. **唯一设备丢失**：wall 重置运维证书（需 clearToken）或 DB 清空 `SECURITY_OPS_CERT_CONFIG` 后重启 → 新 OpsEnroll 再入驻。
 
 ## 依赖关系
@@ -105,7 +105,7 @@ flutter run -d macos
 shell → autumn_ops_ui → autumn_ops
 ```
 
-本地证书落在本 App 沙盒 `Application Support/autumn_ops/`；与产品 App 不共享。换机：管理页导出 → 新设备「+」备份导入。
+本地证书落在本 App 沙盒 `Application Support/autumn_ops/`；与产品 App 不共享。换机：管理页导出 `.ops` → 新设备「+」选文件导入。
 
 ## 添加站点 · 地址探测
 

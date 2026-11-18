@@ -1,7 +1,10 @@
 import 'package:autumn_ops/autumn_ops.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:uuid/uuid.dart';
 
+import 'ops_backup_io.dart';
+import 'ops_fused_field.dart';
 import 'ops_manage_page.dart';
 import 'ops_recovery_page.dart';
 import 'ops_site_io.dart';
@@ -73,7 +76,7 @@ class _OpsSitesPageState extends State<OpsSitesPage> {
                     padding: EdgeInsets.all(24),
                     child: Text(
                       '还没有站点。\n'
-                      '点击右上角「+」：首次入驻、认领码入驻，或导入他机导出的证书备份。',
+                      '点右上角「+」：① 首次口令 ② 认领码（文字）③ 换机选 .ops 备份文件。',
                       textAlign: TextAlign.center,
                       style: TextStyle(height: 1.5),
                     ),
@@ -168,12 +171,13 @@ class _OpsAddSitePageState extends State<OpsAddSitePage> {
   final _secretCtrl = TextEditingController();
   final _claimCtrl = TextEditingController();
   final _importPassCtrl = TextEditingController();
-  final _importBlobCtrl = TextEditingController();
   String _status = '';
   OpsProbeOutcome? _outcome;
   String? _resolvedBaseUrl;
   bool _busy = false;
   _AddMode _mode = _AddMode.enroll;
+  OpsBackupFile? _pickedBackup;
+  String? _pickedBackupName;
 
   @override
   void dispose() {
@@ -182,7 +186,6 @@ class _OpsAddSitePageState extends State<OpsAddSitePage> {
     _secretCtrl.dispose();
     _claimCtrl.dispose();
     _importPassCtrl.dispose();
-    _importBlobCtrl.dispose();
     super.dispose();
   }
 
@@ -401,7 +404,26 @@ class _OpsAddSitePageState extends State<OpsAddSitePage> {
     );
   }
 
-  /// 他机导出的口令包 → 本机落库同一 certId（换机/重装，不是给同事单独发证）。
+  Future<void> _pickBackupFile() async {
+    final picked = await pickOpsBackupFile();
+    if (!mounted) return;
+    if (picked.cancelled) return;
+    if (!picked.ok) {
+      setState(() => _status = picked.error ?? '选择备份失败');
+      return;
+    }
+    setState(() {
+      _pickedBackup = picked.file;
+      _pickedBackupName = picked.displayName;
+      _status = '已选择备份：${picked.displayName}';
+      final hintUrl = picked.file!.baseUrl;
+      if ((hintUrl ?? '').isNotEmpty && _urlCtrl.text.trim().isEmpty) {
+        _urlCtrl.text = hintUrl!;
+      }
+    });
+  }
+
+  /// 他机导出的 .ops → 本机落库同一 certId（换机/重装，不是给同事单独发证）。
   Future<void> _importBackupAndOpen() async {
     if (_busy) return;
     final base = _effectiveBaseUrl();
@@ -417,14 +439,14 @@ class _OpsAddSitePageState extends State<OpsAddSitePage> {
       setState(() => _status = '请先成功探测到 Autumn 运维接口');
       return;
     }
+    final backup = _pickedBackup;
+    if (backup == null) {
+      setState(() => _status = '请先点「选择 .ops 备份文件」');
+      return;
+    }
     final passCheck = OpsValidators.sharePassphrase(_importPassCtrl.text);
     if (!passCheck.ok) {
       setState(() => _status = passCheck.error!);
-      return;
-    }
-    final blobCheck = OpsValidators.backupBlob(_importBlobCtrl.text);
-    if (!blobCheck.ok) {
-      setState(() => _status = blobCheck.error!);
       return;
     }
     setState(() {
@@ -442,10 +464,7 @@ class _OpsAddSitePageState extends State<OpsAddSitePage> {
       );
       final cred = store.credentialStoreFor(site);
       final client = AutumnOpsClient(baseUrl: base, store: cred);
-      await client.importWrapped(
-        _importBlobCtrl.text.trim(),
-        _importPassCtrl.text.trim(),
-      );
+      await client.importWrapped(backup.wrapped, _importPassCtrl.text.trim());
       final bundle = await client.currentBundle();
       if (bundle == null) {
         await cred.clear();
@@ -453,14 +472,15 @@ class _OpsAddSitePageState extends State<OpsAddSitePage> {
         return;
       }
       final probeFp = _outcome?.result?.serverFingerprint;
+      final fileFp = backup.serverFingerprint ?? bundle.serverFingerprint;
       if (probeFp != null &&
           probeFp.isNotEmpty &&
-          (bundle.serverFingerprint ?? '').isNotEmpty &&
-          probeFp != bundle.serverFingerprint) {
+          (fileFp ?? '').isNotEmpty &&
+          probeFp != fileFp) {
         await cred.clear();
         setState(() {
           _status =
-              '导入的备份与当前探测站点指纹不一致，已取消。请确认地址是否为同一 Autumn 实例。';
+              '备份与当前探测站点指纹不一致，已取消。请确认地址是否为同一 Autumn 实例。';
         });
         return;
       }
@@ -487,15 +507,200 @@ class _OpsAddSitePageState extends State<OpsAddSitePage> {
       setState(() {
         _status =
             '导入失败：${OpsErrorMessage.display(e)}\n'
-            '请核对分享口令与密文；若该证书已在服务端吊销，请改用「认领码入驻」或重置后首次入驻。';
+            '请核对：① 是否选对了 .ops 文件；② 分享口令是否与导出时一致；'
+            '③ 证书是否已在服务端吊销（若是请改用「认领码」）。';
       });
     } finally {
       if (mounted) setState(() => _busy = false);
     }
   }
 
+  Future<void> _pasteClipboard(TextEditingController ctrl) async {
+    final data = await Clipboard.getData(Clipboard.kTextPlain);
+    final t = data?.text?.trim() ?? '';
+    if (t.isEmpty) {
+      setState(() => _status = '剪贴板没有可用文本');
+      return;
+    }
+    setState(() {
+      ctrl.text = t;
+      _status = '已从剪贴板粘贴';
+    });
+  }
+
+  Color _outcomeAccent(ColorScheme scheme, OpsProbeKind kind) {
+    switch (kind) {
+      case OpsProbeKind.pending:
+      case OpsProbeKind.ready:
+        return scheme.tertiary;
+      case OpsProbeKind.needReset:
+        return scheme.secondary;
+      case OpsProbeKind.forbidden:
+      case OpsProbeKind.incompatible:
+      case OpsProbeKind.network:
+        return scheme.error;
+    }
+  }
+
+  Widget _buildProbeResultCard(ColorScheme scheme) {
+    final o = _outcome!;
+    final accent = _outcomeAccent(scheme, o.kind);
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: accent.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: accent.withValues(alpha: 0.35)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 4,
+            height: 40,
+            margin: const EdgeInsets.only(right: 10, top: 2),
+            decoration: BoxDecoration(
+              color: accent,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  o.message,
+                  style: TextStyle(fontWeight: FontWeight.w700, color: scheme.onSurface),
+                ),
+                if (o.nextStep != null && o.nextStep!.isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    o.nextStep!,
+                    style: TextStyle(fontSize: 13, height: 1.4, color: scheme.onSurfaceVariant),
+                  ),
+                ],
+                if (_resolvedBaseUrl != null && _resolvedBaseUrl!.isNotEmpty) ...[
+                  const SizedBox(height: 6),
+                  Text(
+                    '可用地址：$_resolvedBaseUrl',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontFamily: 'monospace',
+                      color: scheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _pasteIcon(TextEditingController ctrl) {
+    return IconButton(
+      tooltip: '从剪贴板粘贴',
+      onPressed: _busy ? null : () => _pasteClipboard(ctrl),
+      icon: const Icon(Icons.content_paste, size: 20),
+    );
+  }
+
+  Widget _buildJoinBody({
+    required bool canEnroll,
+    required bool canClaim,
+    required bool canImport,
+  }) {
+    final scheme = Theme.of(context).colorScheme;
+    final hintStyle = TextStyle(fontSize: 12, height: 1.4, color: scheme.onSurfaceVariant);
+
+    switch (_mode) {
+      case _AddMode.enroll:
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('从服务器控制台日志复制「OpsEnroll secret=」后的口令。', style: hintStyle),
+            const SizedBox(height: 10),
+            OpsFusedFieldAction(
+              controller: _secretCtrl,
+              hintText: '入驻口令',
+              actionLabel: '入驻',
+              obscure: true,
+              enabled: !_busy,
+              trailing: _pasteIcon(_secretCtrl),
+              onAction: _busy || !canEnroll ? null : _enrollAndOpen,
+            ),
+            if (!canEnroll) ...[
+              const SizedBox(height: 8),
+              Text(
+                '当前不可首次入驻。已有管理员设备 →「认领码」；换机带了 .ops →「换机备份」。',
+                style: hintStyle,
+              ),
+            ],
+          ],
+        );
+      case _AddMode.claim:
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '粘贴已登录设备「证书」页签发的认领码（文字，约 30 分钟）。不是 .ops 文件。',
+              style: hintStyle,
+            ),
+            const SizedBox(height: 10),
+            OpsFusedFieldAction(
+              controller: _claimCtrl,
+              hintText: '认领码',
+              actionLabel: '认领',
+              enabled: !_busy,
+              trailing: _pasteIcon(_claimCtrl),
+              onAction: _busy || !canClaim ? null : _claimAndOpen,
+            ),
+          ],
+        );
+      case _AddMode.importBackup:
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '选择他机导出的 .ops 文件，再填导出时的分享口令。给同事新设备请用「认领码」。',
+              style: hintStyle,
+            ),
+            const SizedBox(height: 10),
+            OpsFusedActionBar(
+              icon: Icons.folder_open,
+              label: _pickedBackupName == null
+                  ? '尚未选择备份文件'
+                  : '已选：$_pickedBackupName',
+              actionLabel: _pickedBackupName == null ? '选文件' : '重选',
+              enabled: !_busy,
+              onAction: _pickBackupFile,
+            ),
+            if (_pickedBackup?.baseUrl != null && _pickedBackup!.baseUrl!.isNotEmpty) ...[
+              const SizedBox(height: 6),
+              Text(
+                '文件内站点：${_pickedBackup!.baseUrl}',
+                style: TextStyle(fontSize: 12, fontFamily: 'monospace', color: scheme.onSurfaceVariant),
+              ),
+            ],
+            const SizedBox(height: 10),
+            OpsFusedFieldAction(
+              controller: _importPassCtrl,
+              hintText: '分享口令（与导出时相同）',
+              actionLabel: '导入',
+              obscure: true,
+              enabled: !_busy,
+              onAction: _busy || !canImport ? null : _importBackupAndOpen,
+            ),
+          ],
+        );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     final canEnroll = _outcome?.kind == OpsProbeKind.pending;
     final canClaim = _outcome?.kind == OpsProbeKind.needReset ||
         _outcome?.kind == OpsProbeKind.ready ||
@@ -505,190 +710,152 @@ class _OpsAddSitePageState extends State<OpsAddSitePage> {
         _outcome?.kind == OpsProbeKind.pending;
     final canOpenReady = _outcome?.kind == OpsProbeKind.ready;
     final needReset = _outcome?.kind == OpsProbeKind.needReset;
+    final showJoin = canEnroll || canClaim || canImport;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('添加 Autumn 站点')),
+      appBar: AppBar(title: const Text('添加站点')),
       body: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
         children: [
-          TextField(
-            controller: _titleCtrl,
-            decoration: const InputDecoration(
-              labelText: '显示名称',
-              border: OutlineInputBorder(),
-            ),
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: _urlCtrl,
-            decoration: const InputDecoration(
-              labelText: '域名或 IP',
-              hintText: 'example.com / 192.168.1.10 / https://…',
-              border: OutlineInputBorder(),
-              helperMaxLines: 3,
-              helperText: '域名优先 https 再 http；IP（含内网）用 http。已写协议则不再自动拼接。',
-            ),
-            keyboardType: TextInputType.url,
-            onChanged: (_) {
-              if (_resolvedBaseUrl != null || _outcome != null) {
-                setState(() {
-                  _resolvedBaseUrl = null;
-                  _outcome = null;
-                });
-              }
-            },
-            onEditingComplete: _probe,
-          ),
-          const SizedBox(height: 12),
-          FilledButton(
-            onPressed: _busy ? null : _probe,
-            child: const Text('探测'),
-          ),
-          if (_outcome != null) ...[
-            const SizedBox(height: 16),
-            Card(
-              margin: EdgeInsets.zero,
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(_outcome!.message, style: const TextStyle(fontWeight: FontWeight.w600)),
-                    if (_outcome!.nextStep != null) ...[
-                      const SizedBox(height: 6),
-                      Text(_outcome!.nextStep!, style: const TextStyle(fontSize: 13, height: 1.4)),
-                    ],
-                  ],
-                ),
-              ),
-            ),
-          ],
-          if (needReset) ...[
-            const SizedBox(height: 12),
-            OutlinedButton.icon(
-              onPressed: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute<void>(
-                    builder: (_) => OpsRecoveryPage(
-                      siteTitle: _titleCtrl.text.trim(),
-                      baseUrl: _effectiveBaseUrl(),
+          OpsAddSection(
+            title: '1. 站点地址',
+            subtitle: '域名优先 https 再 http；IP（含内网）用 http。已写协议则不再自动拼接。',
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Material(
+                  color: scheme.surface,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    side: BorderSide(color: scheme.outlineVariant),
+                  ),
+                  clipBehavior: Clip.antiAlias,
+                  child: TextField(
+                    controller: _titleCtrl,
+                    enabled: !_busy,
+                    textInputAction: TextInputAction.next,
+                    style: const TextStyle(fontSize: 15, height: 1.2),
+                    decoration: InputDecoration(
+                      hintText: '显示名称（选填，如：生产机房）',
+                      hintStyle: TextStyle(color: scheme.onSurfaceVariant.withValues(alpha: 0.7)),
+                      border: InputBorder.none,
+                      enabledBorder: InputBorder.none,
+                      focusedBorder: InputBorder.none,
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
                     ),
                   ),
-                );
-              },
-              icon: const Icon(Icons.healing),
-              label: const Text('查看运维墙 / 数据库恢复步骤'),
-            ),
-          ],
-          if (canEnroll || canClaim || canImport) ...[
-            const SizedBox(height: 16),
-            SegmentedButton<_AddMode>(
-              segments: const [
-                ButtonSegment(
-                  value: _AddMode.enroll,
-                  label: Text('首次'),
-                  icon: Icon(Icons.key),
                 ),
-                ButtonSegment(
-                  value: _AddMode.claim,
-                  label: Text('认领码'),
-                  icon: Icon(Icons.qr_code),
-                ),
-                ButtonSegment(
-                  value: _AddMode.importBackup,
-                  label: Text('备份导入'),
-                  icon: Icon(Icons.file_download_outlined),
+                const SizedBox(height: 10),
+                OpsFusedFieldAction(
+                  controller: _urlCtrl,
+                  hintText: '域名或 IP，如 example.com / 192.168.1.10',
+                  actionLabel: _busy && _outcome == null ? '探测中' : '探测',
+                  enabled: !_busy,
+                  keyboardType: TextInputType.url,
+                  onChanged: (_) {
+                    if (_resolvedBaseUrl != null || _outcome != null) {
+                      setState(() {
+                        _resolvedBaseUrl = null;
+                        _outcome = null;
+                      });
+                    }
+                  },
+                  onAction: _busy ? null : _probe,
                 ),
               ],
-              selected: {_mode},
-              onSelectionChanged: (s) => setState(() => _mode = s.first),
             ),
+          ),
+          if (_outcome != null) ...[
             const SizedBox(height: 12),
-            if (_mode == _AddMode.enroll) ...[
-              TextField(
-                controller: _secretCtrl,
-                obscureText: true,
-                decoration: const InputDecoration(
-                  labelText: '入驻口令',
-                  helperText: '从服务器控制台日志复制「OpsEnroll secret=」后的口令',
-                  border: OutlineInputBorder(),
-                ),
+            OpsAddSection(
+              title: '2. 探测结果',
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildProbeResultCard(scheme),
+                  if (needReset) ...[
+                    const SizedBox(height: 10),
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        onPressed: () {
+                          Navigator.of(context).push(
+                            MaterialPageRoute<void>(
+                              builder: (_) => OpsRecoveryPage(
+                                siteTitle: _titleCtrl.text.trim(),
+                                baseUrl: _effectiveBaseUrl(),
+                              ),
+                            ),
+                          );
+                        },
+                        icon: const Icon(Icons.healing, size: 18),
+                        label: const Text('无备份时的恢复步骤'),
+                      ),
+                    ),
+                  ],
+                  if (canOpenReady) ...[
+                    const SizedBox(height: 10),
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton.tonal(
+                        onPressed: _busy ? null : _saveReadyAndOpen,
+                        child: const Text('本机已有证书 · 直接进入管理'),
+                      ),
+                    ),
+                  ],
+                ],
               ),
-              const SizedBox(height: 8),
-              FilledButton(
-                onPressed: _busy || !canEnroll ? null : _enrollAndOpen,
-                child: const Text('入驻并进入管理'),
-              ),
-              if (!canEnroll)
-                const Padding(
-                  padding: EdgeInsets.only(top: 8),
-                  child: Text(
-                    '当前不是「可首次入驻」。已有管理员设备请用「认领码」；换机请用「备份导入」。',
-                    style: TextStyle(fontSize: 12, color: Colors.black54),
-                  ),
-                ),
-            ] else if (_mode == _AddMode.claim) ...[
-              const Text(
-                '新设备各自生成密钥，可单独吊销。由已登录设备在「证书」页签发认领码。',
-                style: TextStyle(fontSize: 12, height: 1.4, color: Colors.black54),
-              ),
-              const SizedBox(height: 8),
-              TextField(
-                controller: _claimCtrl,
-                decoration: const InputDecoration(
-                  labelText: '认领码',
-                  helperText: '约 30 分钟有效，单次消费',
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 8),
-              FilledButton(
-                onPressed: _busy || !canClaim ? null : _claimAndOpen,
-                child: const Text('认领并进入管理'),
-              ),
-            ] else ...[
-              const Text(
-                '换机或重装：粘贴他机「证书」页导出的口令包，与导出时相同的分享口令。'
-                '导入后与源设备共享同一证书标识；给同事单独一台机请用「认领码」。',
-                style: TextStyle(fontSize: 12, height: 1.4, color: Colors.black54),
-              ),
-              const SizedBox(height: 8),
-              TextField(
-                controller: _importPassCtrl,
-                obscureText: true,
-                decoration: const InputDecoration(
-                  labelText: '分享口令',
-                  helperText: '须与导出时填写的口令一致',
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 8),
-              TextField(
-                controller: _importBlobCtrl,
-                maxLines: 5,
-                decoration: const InputDecoration(
-                  labelText: '备份密文',
-                  hintText: '粘贴 .ops 文件全文，或分享内容中的 Base64 密文',
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 8),
-              FilledButton(
-                onPressed: _busy || !canImport ? null : _importBackupAndOpen,
-                child: const Text('导入并进入管理'),
-              ),
-            ],
+            ),
           ],
-          if (canOpenReady) ...[
-            const SizedBox(height: 8),
-            OutlinedButton(
-              onPressed: _busy ? null : _saveReadyAndOpen,
-              child: const Text('本机已有证书 · 保存并进入管理'),
+          if (showJoin) ...[
+            const SizedBox(height: 12),
+            OpsAddSection(
+              title: _outcome == null ? '2. 接入方式' : '3. 接入方式',
+              subtitle: '按你的情况选一种：首次 / 认领新设备 / 换机恢复。',
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SegmentedButton<_AddMode>(
+                    style: ButtonStyle(
+                      visualDensity: VisualDensity.compact,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                    segments: const [
+                      ButtonSegment(
+                        value: _AddMode.enroll,
+                        label: Text('首次'),
+                        icon: Icon(Icons.key, size: 16),
+                      ),
+                      ButtonSegment(
+                        value: _AddMode.claim,
+                        label: Text('认领码'),
+                        icon: Icon(Icons.qr_code, size: 16),
+                      ),
+                      ButtonSegment(
+                        value: _AddMode.importBackup,
+                        label: Text('换机'),
+                        icon: Icon(Icons.folder_open, size: 16),
+                      ),
+                    ],
+                    selected: {_mode},
+                    onSelectionChanged: (s) => setState(() => _mode = s.first),
+                  ),
+                  const SizedBox(height: 12),
+                  _buildJoinBody(
+                    canEnroll: canEnroll,
+                    canClaim: canClaim,
+                    canImport: canImport,
+                  ),
+                ],
+              ),
             ),
           ],
           if (_status.isNotEmpty) ...[
-            const SizedBox(height: 16),
-            Text(_status, style: const TextStyle(fontSize: 13, height: 1.4)),
+            const SizedBox(height: 12),
+            Text(
+              _status,
+              style: TextStyle(fontSize: 13, height: 1.4, color: scheme.onSurfaceVariant),
+            ),
           ],
         ],
       ),

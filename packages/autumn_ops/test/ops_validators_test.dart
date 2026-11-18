@@ -17,6 +17,11 @@ void main() {
       expect(OpsValidators.wallIp('192.168.1.0/99').ok, isFalse);
       expect(OpsValidators.wallIp('1 2 3 4').ok, isFalse);
     });
+
+    test('rejects policy black ip when asked', () {
+      expect(OpsValidators.wallIp('0.0.0.0').ok, isTrue);
+      expect(OpsValidators.wallIp('0.0.0.0', rejectPolicyBlackIp: true).ok, isFalse);
+    });
   });
 
   group('OpsValidators.siteEndpoint', () {

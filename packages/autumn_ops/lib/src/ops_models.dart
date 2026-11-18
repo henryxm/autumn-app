@@ -123,12 +123,17 @@ class OpsIpRow {
   /// 白名单类：`0` 启用 / `1` 禁用。
   final int? forbidden;
 
-  /// 黑名单类：`1` 生效 / `0` 停用。
+  /// 黑名单类：与 wall 一致——`0` 生效拦截 / `1` 停用。
   final int? available;
   final int? createTimeMs;
 
   bool get isForbidden => (forbidden ?? 0) == 1;
+
+  /// 原始 `available==1`（停用态）；黑名单是否生效请用 [isBlackActive]。
   bool get isAvailable => (available ?? 0) == 1;
+
+  /// 黑名单条目是否正在拦截（`available==0`）。
+  bool get isBlackActive => (available ?? 1) == 0;
 
   factory OpsIpRow.fromJson(Map<String, dynamic> json) {
     int? asInt(dynamic v) {

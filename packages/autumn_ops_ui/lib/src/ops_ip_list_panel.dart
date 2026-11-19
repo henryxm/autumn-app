@@ -28,11 +28,13 @@ class OpsIpListPanel extends StatefulWidget {
     this.currentIp = '',
     this.resolveClearToken,
     this.allowClaimCurrent = true,
+    this.claimCurrentHidden = false,
     this.ipInputHint = '请输入 IP 地址',
     this.requireClearTokenForCurrent = true,
     this.busy = false,
     this.onBusyChanged,
     this.onToast,
+    this.onMembershipMayChange,
     this.header,
     this.footer,
   });
@@ -51,11 +53,17 @@ class OpsIpListPanel extends StatefulWidget {
   /// 删除当前访问 IP 等危险操作时解析清除确认令牌；返回 `null` 表示用户取消。
   final Future<String?> Function({required String reason})? resolveClearToken;
   final bool allowClaimCurrent;
+
+  /// 为 true 时隐藏「加入当前 IP」（例如已在管理 IP 或服务端判定已在白名单）。
+  final bool claimCurrentHidden;
   final String ipInputHint;
   final bool requireClearTokenForCurrent;
   final bool busy;
   final ValueChanged<bool>? onBusyChanged;
   final ValueChanged<String>? onToast;
+
+  /// 认领/添加/删除可能改变当前 IP 成员资格时回调（父页应刷新 `currentIp`）。
+  final VoidCallback? onMembershipMayChange;
   final Widget? header;
   final Widget? footer;
 
@@ -265,6 +273,7 @@ class _OpsIpListPanelState extends State<OpsIpListPanel> {
       await widget.onRemove(row.ip, clearToken: token);
       _toast('已删除：${row.ip}');
       await _reload();
+      widget.onMembershipMayChange?.call();
     });
   }
 
@@ -286,6 +295,7 @@ class _OpsIpListPanelState extends State<OpsIpListPanel> {
       _ipCtrl.clear();
       _toast('已添加：$saved');
       await _reload();
+      widget.onMembershipMayChange?.call();
     });
   }
 
@@ -398,8 +408,10 @@ class _OpsIpListPanelState extends State<OpsIpListPanel> {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final showClaimCurrent =
-        widget.allowClaimCurrent && widget.currentIp.isNotEmpty && !_currentIpAlreadyListed;
+    final showClaimCurrent = widget.allowClaimCurrent &&
+        widget.currentIp.isNotEmpty &&
+        !widget.claimCurrentHidden &&
+        !_currentIpAlreadyListed;
 
     return RefreshIndicator(
       onRefresh: _reload,
@@ -434,6 +446,7 @@ class _OpsIpListPanelState extends State<OpsIpListPanel> {
                           final ip = await widget.onAdd(claimCurrent: true);
                           _toast('已加入：$ip');
                           await _reload();
+                          widget.onMembershipMayChange?.call();
                         }),
                 icon: const Icon(Icons.my_location, size: 18),
                 label: Text('加入当前 IP（${widget.currentIp}）'),

@@ -164,8 +164,118 @@ class AutumnOpsClient {
         'forbidden': forbidden ? 1 : 0,
       });
 
-  Future<Map<String, dynamic>> currentIp() =>
-      _authedPost('/ops/api/v1/currentIp', {});
+  Future<OpsCurrentIp> currentIp() async {
+    final data = await _authedPost('/ops/api/v1/currentIp', {});
+    return OpsCurrentIp.fromJson(data);
+  }
+
+  Future<OpsShieldPage> shieldList({int page = 1, int limit = 20}) async {
+    final data = await _authedPost('/ops/api/v1/shield/list', {
+      'page': page,
+      'limit': limit,
+    });
+    return OpsShieldPage.fromJson(data);
+  }
+
+  Future<OpsShieldRow> shieldSave({
+    required String uri,
+    bool enable = true,
+    int auto = 10000,
+  }) async {
+    final data = await _authedPost('/ops/api/v1/shield/save', {
+      'uri': uri,
+      'enable': enable,
+      'auto': auto,
+    });
+    return OpsShieldRow.fromJson(data);
+  }
+
+  Future<OpsShieldRow> shieldUpdate({
+    required int id,
+    String? uri,
+    bool? enable,
+    int? auto,
+  }) async {
+    final data = await _authedPost('/ops/api/v1/shield/update', {
+      'id': id,
+      if (uri != null) 'uri': uri,
+      if (enable != null) 'enable': enable,
+      if (auto != null) 'auto': auto,
+    });
+    return OpsShieldRow.fromJson(data);
+  }
+
+  Future<Map<String, dynamic>> shieldDelete(List<int> ids) =>
+      _authedPost('/ops/api/v1/shield/delete', {'ids': ids});
+
+  Future<OpsShieldStatus> shieldStatus() async {
+    final data = await _authedPost('/ops/api/v1/shield/status', {});
+    return OpsShieldStatus.fromJson(data);
+  }
+
+  Future<OpsShieldStatus> shieldSetAttack(bool attack) async {
+    final data = await _authedPost('/ops/api/v1/shield/setAttack', {
+      'attack': attack,
+    });
+    return OpsShieldStatus.fromJson(data);
+  }
+
+  Future<OpsShieldStatus> shieldSetPrint(bool print) async {
+    final data = await _authedPost('/ops/api/v1/shield/setPrint', {
+      'print': print,
+    });
+    return OpsShieldStatus.fromJson(data);
+  }
+
+  Future<OpsShieldStatus> shieldSetEnable(bool enable) async {
+    final data = await _authedPost('/ops/api/v1/shield/setEnable', {
+      'enable': enable,
+    });
+    return OpsShieldStatus.fromJson(data);
+  }
+
+  Future<OpsJumpPage> jumpList({int page = 1, int limit = 20}) async {
+    final data = await _authedPost('/ops/api/v1/jump/list', {
+      'page': page,
+      'limit': limit,
+    });
+    return OpsJumpPage.fromJson(data);
+  }
+
+  Future<OpsJumpRow> jumpSave({
+    required String host,
+    required String uri,
+    required String url,
+    bool enable = true,
+  }) async {
+    final data = await _authedPost('/ops/api/v1/jump/save', {
+      'host': host,
+      'uri': uri,
+      'url': url,
+      'enable': enable,
+    });
+    return OpsJumpRow.fromJson(data);
+  }
+
+  Future<OpsJumpRow> jumpUpdate({
+    required int id,
+    String? host,
+    String? uri,
+    String? url,
+    bool? enable,
+  }) async {
+    final data = await _authedPost('/ops/api/v1/jump/update', {
+      'id': id,
+      if (host != null) 'host': host,
+      if (uri != null) 'uri': uri,
+      if (url != null) 'url': url,
+      if (enable != null) 'enable': enable,
+    });
+    return OpsJumpRow.fromJson(data);
+  }
+
+  Future<Map<String, dynamic>> jumpDelete(List<int> ids) =>
+      _authedPost('/ops/api/v1/jump/delete', {'ids': ids});
 
   Future<OpsIpPage> ipWhiteList({int page = 1, int limit = 20}) async {
     final data = await _authedPost('/ops/api/v1/ipwhite/list', {

@@ -8,6 +8,8 @@ export 'src/ops_manage_page.dart';
 export 'src/ops_gate.dart';
 export 'src/ops_payload_io.dart';
 export 'src/ops_ip_list_panel.dart';
+export 'src/ops_shield_panel.dart';
+export 'src/ops_jump_panel.dart';
 export 'src/ops_runtime_panel.dart';
 export 'src/ops_fused_field.dart';
 export 'src/ops_keyboard_dismiss.dart';

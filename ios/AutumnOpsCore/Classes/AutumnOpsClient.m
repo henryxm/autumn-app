@@ -284,6 +284,53 @@
   }];
 }
 
+- (void)shieldListPage:(NSInteger)page limit:(NSInteger)limit completion:(AutumnOpsDictBlock)completion {
+  [self _authedPost:@"/ops/api/v1/shield/list" body:@{ @"page": @(page), @"limit": @(limit) } completion:completion];
+}
+- (void)shieldSaveUri:(NSString *)uri enable:(BOOL)enable autoValue:(NSInteger)autoValue completion:(AutumnOpsDictBlock)completion {
+  [self _authedPost:@"/ops/api/v1/shield/save" body:@{ @"uri": uri ?: @"", @"enable": @(enable), @"auto": @(autoValue) } completion:completion];
+}
+- (void)shieldUpdateId:(NSInteger)sid uri:(NSString *)uri enable:(NSNumber *)enable autoValue:(NSNumber *)autoValue completion:(AutumnOpsDictBlock)completion {
+  NSMutableDictionary *b = [@{ @"id": @(sid) } mutableCopy];
+  if (uri.length) b[@"uri"] = uri;
+  if (enable) b[@"enable"] = enable;
+  if (autoValue) b[@"auto"] = autoValue;
+  [self _authedPost:@"/ops/api/v1/shield/update" body:b completion:completion];
+}
+- (void)shieldDeleteIds:(NSArray<NSNumber *> *)ids completion:(AutumnOpsDictBlock)completion {
+  [self _authedPost:@"/ops/api/v1/shield/delete" body:@{ @"ids": ids ?: @[] } completion:completion];
+}
+- (void)shieldStatus:(AutumnOpsDictBlock)completion {
+  [self _authedPost:@"/ops/api/v1/shield/status" body:@{} completion:completion];
+}
+- (void)shieldSetAttack:(BOOL)attack completion:(AutumnOpsDictBlock)completion {
+  [self _authedPost:@"/ops/api/v1/shield/setAttack" body:@{ @"attack": @(attack) } completion:completion];
+}
+- (void)shieldSetPrint:(BOOL)print completion:(AutumnOpsDictBlock)completion {
+  [self _authedPost:@"/ops/api/v1/shield/setPrint" body:@{ @"print": @(print) } completion:completion];
+}
+- (void)shieldSetEnable:(BOOL)enable completion:(AutumnOpsDictBlock)completion {
+  [self _authedPost:@"/ops/api/v1/shield/setEnable" body:@{ @"enable": @(enable) } completion:completion];
+}
+
+- (void)jumpListPage:(NSInteger)page limit:(NSInteger)limit completion:(AutumnOpsDictBlock)completion {
+  [self _authedPost:@"/ops/api/v1/jump/list" body:@{ @"page": @(page), @"limit": @(limit) } completion:completion];
+}
+- (void)jumpSaveHost:(NSString *)host uri:(NSString *)uri url:(NSString *)url enable:(BOOL)enable completion:(AutumnOpsDictBlock)completion {
+  [self _authedPost:@"/ops/api/v1/jump/save" body:@{ @"host": host ?: @"", @"uri": uri ?: @"", @"url": url ?: @"", @"enable": @(enable) } completion:completion];
+}
+- (void)jumpUpdateId:(NSInteger)jid host:(NSString *)host uri:(NSString *)uri url:(NSString *)url enable:(NSNumber *)enable completion:(AutumnOpsDictBlock)completion {
+  NSMutableDictionary *b = [@{ @"id": @(jid) } mutableCopy];
+  if (host.length) b[@"host"] = host;
+  if (uri.length) b[@"uri"] = uri;
+  if (url.length) b[@"url"] = url;
+  if (enable) b[@"enable"] = enable;
+  [self _authedPost:@"/ops/api/v1/jump/update" body:b completion:completion];
+}
+- (void)jumpDeleteIds:(NSArray<NSNumber *> *)ids completion:(AutumnOpsDictBlock)completion {
+  [self _authedPost:@"/ops/api/v1/jump/delete" body:@{ @"ids": ids ?: @[] } completion:completion];
+}
+
 - (void)gateGet:(AutumnOpsDictBlock)completion {
   [self _authedPost:@"/ops/api/v1/gate/get" body:@{} completion:completion];
 }

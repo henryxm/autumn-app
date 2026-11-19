@@ -47,6 +47,20 @@ typedef void (^AutumnOpsIntBlock)(NSInteger value, NSError * _Nullable error);
 - (void)ipBlackFirewallCount:(AutumnOpsIntBlock)completion;
 - (void)ipBlackSetFirewallCount:(NSInteger)count completion:(AutumnOpsIntBlock)completion;
 
+- (void)shieldListPage:(NSInteger)page limit:(NSInteger)limit completion:(AutumnOpsDictBlock)completion;
+- (void)shieldSaveUri:(NSString *)uri enable:(BOOL)enable autoValue:(NSInteger)autoValue completion:(AutumnOpsDictBlock)completion;
+- (void)shieldUpdateId:(NSInteger)sid uri:(nullable NSString *)uri enable:(nullable NSNumber *)enable autoValue:(nullable NSNumber *)autoValue completion:(AutumnOpsDictBlock)completion;
+- (void)shieldDeleteIds:(NSArray<NSNumber *> *)ids completion:(AutumnOpsDictBlock)completion;
+- (void)shieldStatus:(AutumnOpsDictBlock)completion;
+- (void)shieldSetAttack:(BOOL)attack completion:(AutumnOpsDictBlock)completion;
+- (void)shieldSetPrint:(BOOL)print completion:(AutumnOpsDictBlock)completion;
+- (void)shieldSetEnable:(BOOL)enable completion:(AutumnOpsDictBlock)completion;
+
+- (void)jumpListPage:(NSInteger)page limit:(NSInteger)limit completion:(AutumnOpsDictBlock)completion;
+- (void)jumpSaveHost:(NSString *)host uri:(NSString *)uri url:(NSString *)url enable:(BOOL)enable completion:(AutumnOpsDictBlock)completion;
+- (void)jumpUpdateId:(NSInteger)jid host:(nullable NSString *)host uri:(nullable NSString *)uri url:(nullable NSString *)url enable:(nullable NSNumber *)enable completion:(AutumnOpsDictBlock)completion;
+- (void)jumpDeleteIds:(NSArray<NSNumber *> *)ids completion:(AutumnOpsDictBlock)completion;
+
 - (void)gateGet:(AutumnOpsDictBlock)completion;
 - (void)runtimeSnapshot:(AutumnOpsDictBlock)completion;
 - (void)gateVerifyClearToken:(NSString *)clearToken completion:(AutumnOpsDictBlock)completion;

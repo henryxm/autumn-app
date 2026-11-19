@@ -6,9 +6,11 @@ import 'package:share_plus/share_plus.dart';
 import 'ops_payload_io.dart';
 import 'ops_fused_field.dart';
 import 'ops_ip_list_panel.dart';
+import 'ops_jump_panel.dart';
 import 'ops_pages.dart';
 import 'ops_recovery_page.dart';
 import 'ops_runtime_panel.dart';
+import 'ops_shield_panel.dart';
 import 'ops_site_io.dart';
 
 /// 单站点运维控制台：概览 / 运行 / 管理 IP / 白名单 / 黑名单 / 证书。
@@ -41,6 +43,7 @@ class _OpsManageSitePageState extends State<OpsManageSitePage>
   bool? _clearTokenConfigured;
   String _currentIp = '';
   bool _currentIpInAdmin = false;
+  bool _currentIpInWhite = false;
   int _activeCount = 0;
   List<Map<String, dynamic>> _certs = [];
   OpsClaimIssueResult? _lastIssue;
@@ -56,7 +59,7 @@ class _OpsManageSitePageState extends State<OpsManageSitePage>
   @override
   void initState() {
     super.initState();
-    _tabs = TabController(length: 6, vsync: this);
+    _tabs = TabController(length: 8, vsync: this);
     _load();
   }
 
@@ -137,18 +140,6 @@ class _OpsManageSitePageState extends State<OpsManageSitePage>
     return ok == true;
   }
 
-  Future<bool> _isCurrentIpInAdminList(AutumnOpsClient c, String currentIp) async {
-    if (currentIp.isEmpty) return false;
-    var page = 1;
-    while (page <= 20) {
-      final data = await c.adminIpList(page: page, limit: 100);
-      if (data.list.any((r) => r.ip == currentIp)) return true;
-      if (!data.hasMore) return false;
-      page++;
-    }
-    return false;
-  }
-
   String _syncStatusText() {
     final ip = _currentIp.isEmpty ? '未知' : _currentIp;
     return '已同步 · 本机访问 IP：$ip';
@@ -162,8 +153,6 @@ class _OpsManageSitePageState extends State<OpsManageSitePage>
       final gate = await c.gateGet();
       final cur = await c.currentIp();
       final certs = await c.certList();
-      final currentIp = '${cur['ip'] ?? ''}';
-      final inAdmin = await _isCurrentIpInAdminList(c, currentIp);
       if (!mounted) return;
       setState(() {
         _adminIpEnable = gate['adminIpEnable'] == true;
@@ -171,8 +160,9 @@ class _OpsManageSitePageState extends State<OpsManageSitePage>
             ? gate['discoverEnabled'] == true
             : true;
         _clearTokenConfigured = gate['clearTokenConfigured'] == true;
-        _currentIp = currentIp;
-        _currentIpInAdmin = inAdmin;
+        _currentIp = cur.ip;
+        _currentIpInAdmin = cur.inAdmin;
+        _currentIpInWhite = cur.inWhite;
         _certs = _asMaps(certs['list']);
         _activeCount = certs['activeCount'] is int
             ? certs['activeCount'] as int
@@ -562,6 +552,8 @@ class _OpsManageSitePageState extends State<OpsManageSitePage>
                   Tab(text: '管理IP'),
                   Tab(text: '白名单'),
                   Tab(text: '黑名单'),
+                  Tab(text: '盾牌'),
+                  Tab(text: '跳转'),
                   Tab(text: '证书'),
                 ],
               ),
@@ -607,6 +599,8 @@ class _OpsManageSitePageState extends State<OpsManageSitePage>
                       _buildAdminIp(),
                       _buildIpWhite(),
                       _buildIpBlack(),
+                      _buildShield(),
+                      _buildJump(),
                       _buildCerts(site),
                     ],
                   ),
@@ -1002,6 +996,7 @@ class _OpsManageSitePageState extends State<OpsManageSitePage>
       description: '控制谁可以打开后台登录页（进门白名单）。与「用户白名单 / 黑名单」分表，互不影响。',
       statusMode: OpsIpStatusMode.forbidden,
       currentIp: _currentIp,
+      claimCurrentHidden: _currentIpInAdmin,
       resolveClearToken: _resolveClearToken,
       busy: _busy,
       onBusyChanged: _setPanelBusy,
@@ -1010,6 +1005,9 @@ class _OpsManageSitePageState extends State<OpsManageSitePage>
         final c = await _client();
         await c!.ensureSession();
         return c.adminIpList(page: page, limit: limit);
+      },
+      onMembershipMayChange: () {
+        _refreshRemote();
       },
       onAdd: ({String? ip, bool claimCurrent = false}) async {
         final c = await _client();
@@ -1033,10 +1031,14 @@ class _OpsManageSitePageState extends State<OpsManageSitePage>
       description: '防火墙白名单：列入后可降低被误拉黑风险。与「管理 IP」不是同一张表。',
       statusMode: OpsIpStatusMode.forbidden,
       currentIp: _currentIp,
+      claimCurrentHidden: _currentIpInAdmin || _currentIpInWhite,
       resolveClearToken: _resolveClearToken,
       busy: _busy,
       onBusyChanged: _setPanelBusy,
       onToast: _toast,
+      onMembershipMayChange: () {
+        _refreshRemote();
+      },
       ipInputHint: '请输入白名单 IP',
       loadPage: ({required int page, required int limit}) async {
         final c = await _client();
@@ -1056,6 +1058,24 @@ class _OpsManageSitePageState extends State<OpsManageSitePage>
         final c = await _client();
         await c!.ipWhiteSetForbidden(ip, forbidden: !enable);
       },
+    );
+  }
+
+  Widget _buildShield() {
+    return OpsShieldPanel(
+      busy: _busy,
+      onBusyChanged: _setPanelBusy,
+      onToast: _toast,
+      client: _client,
+    );
+  }
+
+  Widget _buildJump() {
+    return OpsJumpPanel(
+      busy: _busy,
+      onBusyChanged: _setPanelBusy,
+      onToast: _toast,
+      client: _client,
     );
   }
 

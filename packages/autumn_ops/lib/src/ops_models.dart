@@ -769,3 +769,197 @@ class OpsCredentialBundle {
     );
   }
 }
+
+/// `POST /currentIp`：访问 IP 及名单成员资格。
+class OpsCurrentIp {
+  const OpsCurrentIp({
+    required this.ip,
+    this.inAdmin = false,
+    this.inWhite = false,
+  });
+
+  final String ip;
+  final bool inAdmin;
+  final bool inWhite;
+
+  factory OpsCurrentIp.fromJson(Map<String, dynamic> json) {
+    return OpsCurrentIp(
+      ip: '${json['ip'] ?? ''}',
+      inAdmin: json['inAdmin'] == true,
+      inWhite: json['inWhite'] == true,
+    );
+  }
+}
+
+class OpsShieldRow {
+  const OpsShieldRow({
+    required this.id,
+    required this.uri,
+    required this.enable,
+    required this.auto,
+  });
+
+  final int id;
+  final String uri;
+  final bool enable;
+  final int auto;
+
+  factory OpsShieldRow.fromJson(Map<String, dynamic> json) {
+    int asInt(dynamic v, int fallback) {
+      if (v is int) return v;
+      if (v is num) return v.toInt();
+      return int.tryParse('${v ?? ''}') ?? fallback;
+    }
+
+    return OpsShieldRow(
+      id: asInt(json['id'], 0),
+      uri: '${json['uri'] ?? ''}',
+      enable: json['enable'] == true,
+      auto: asInt(json['auto'], 10000),
+    );
+  }
+}
+
+class OpsShieldPage {
+  const OpsShieldPage({
+    required this.count,
+    required this.page,
+    required this.limit,
+    required this.hasMore,
+    required this.list,
+  });
+
+  final int count;
+  final int page;
+  final int limit;
+  final bool hasMore;
+  final List<OpsShieldRow> list;
+
+  factory OpsShieldPage.fromJson(Map<String, dynamic> json) {
+    int asInt(dynamic v, int fallback) {
+      if (v is int) return v;
+      if (v is num) return v.toInt();
+      return int.tryParse('${v ?? ''}') ?? fallback;
+    }
+
+    final raw = json['list'];
+    final rows = <OpsShieldRow>[];
+    if (raw is List) {
+      for (final e in raw) {
+        if (e is Map<String, dynamic>) {
+          rows.add(OpsShieldRow.fromJson(e));
+        } else if (e is Map) {
+          rows.add(OpsShieldRow.fromJson(Map<String, dynamic>.from(e)));
+        }
+      }
+    }
+    final page = asInt(json['page'], 1);
+    final limit = asInt(json['limit'], 20);
+    final count = asInt(json['count'], rows.length);
+    return OpsShieldPage(
+      count: count,
+      page: page,
+      limit: limit,
+      hasMore: json['hasMore'] == true || page * limit < count,
+      list: rows,
+    );
+  }
+}
+
+class OpsShieldStatus {
+  const OpsShieldStatus({
+    required this.attack,
+    required this.printEnabled,
+    required this.enable,
+  });
+
+  final bool attack;
+  final bool printEnabled;
+  final bool enable;
+
+  factory OpsShieldStatus.fromJson(Map<String, dynamic> json) {
+    return OpsShieldStatus(
+      attack: json['attack'] == true,
+      printEnabled: json['print'] == true,
+      enable: json['enable'] == true,
+    );
+  }
+}
+
+class OpsJumpRow {
+  const OpsJumpRow({
+    required this.id,
+    required this.host,
+    required this.uri,
+    required this.url,
+    required this.enable,
+  });
+
+  final int id;
+  final String host;
+  final String uri;
+  final String url;
+  final bool enable;
+
+  factory OpsJumpRow.fromJson(Map<String, dynamic> json) {
+    int asInt(dynamic v, int fallback) {
+      if (v is int) return v;
+      if (v is num) return v.toInt();
+      return int.tryParse('${v ?? ''}') ?? fallback;
+    }
+
+    return OpsJumpRow(
+      id: asInt(json['id'], 0),
+      host: '${json['host'] ?? ''}',
+      uri: '${json['uri'] ?? ''}',
+      url: '${json['url'] ?? ''}',
+      enable: json['enable'] == true,
+    );
+  }
+}
+
+class OpsJumpPage {
+  const OpsJumpPage({
+    required this.count,
+    required this.page,
+    required this.limit,
+    required this.hasMore,
+    required this.list,
+  });
+
+  final int count;
+  final int page;
+  final int limit;
+  final bool hasMore;
+  final List<OpsJumpRow> list;
+
+  factory OpsJumpPage.fromJson(Map<String, dynamic> json) {
+    int asInt(dynamic v, int fallback) {
+      if (v is int) return v;
+      if (v is num) return v.toInt();
+      return int.tryParse('${v ?? ''}') ?? fallback;
+    }
+
+    final raw = json['list'];
+    final rows = <OpsJumpRow>[];
+    if (raw is List) {
+      for (final e in raw) {
+        if (e is Map<String, dynamic>) {
+          rows.add(OpsJumpRow.fromJson(e));
+        } else if (e is Map) {
+          rows.add(OpsJumpRow.fromJson(Map<String, dynamic>.from(e)));
+        }
+      }
+    }
+    final page = asInt(json['page'], 1);
+    final limit = asInt(json['limit'], 20);
+    final count = asInt(json['count'], rows.length);
+    return OpsJumpPage(
+      count: count,
+      page: page,
+      limit: limit,
+      hasMore: json['hasMore'] == true || page * limit < count,
+      list: rows,
+    );
+  }
+}

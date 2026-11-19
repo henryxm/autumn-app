@@ -67,6 +67,55 @@
   return [self _seqTag:body];
 }
 
+/// Minimal DER TLV reader. On success advances *offset past the TLV and returns value bytes.
++ (nullable NSData *)_derReadValue:(NSData *)data
+                          offset:(NSUInteger *)offset
+                     expectedTag:(uint8_t)expectedTag {
+  if (!data || !offset || *offset >= data.length) return nil;
+  const uint8_t *buf = data.bytes;
+  NSUInteger i = *offset;
+  uint8_t tag = buf[i++];
+  if (tag != expectedTag) return nil;
+  if (i >= data.length) return nil;
+  NSUInteger length = buf[i++];
+  if (length & 0x80) {
+    NSUInteger n = length & 0x7f;
+    if (n == 0 || n > 3 || i + n > data.length) return nil;
+    length = 0;
+    for (NSUInteger k = 0; k < n; k++) {
+      length = (length << 8) | buf[i++];
+    }
+  }
+  if (i + length > data.length) return nil;
+  NSData *value = [data subdataWithRange:NSMakeRange(i, length)];
+  *offset = i + length;
+  return value;
+}
+
+/// PKCS#8 PrivateKeyInfo → PKCS#1 RSAPrivateKey (Flutter `encodeRSAPrivateKeyToPem` / iOS export).
++ (nullable NSData *)_pkcs1FromPKCS8Private:(NSData *)pkcs8 {
+  NSUInteger o = 0;
+  NSData *seq = [self _derReadValue:pkcs8 offset:&o expectedTag:0x30];
+  if (!seq) return nil;
+  NSUInteger i = 0;
+  if (![self _derReadValue:seq offset:&i expectedTag:0x02]) return nil; // version
+  if (![self _derReadValue:seq offset:&i expectedTag:0x30]) return nil; // AlgorithmIdentifier
+  return [self _derReadValue:seq offset:&i expectedTag:0x04];           // privateKey OCTET STRING
+}
+
+/// SubjectPublicKeyInfo → PKCS#1 RSAPublicKey.
++ (nullable NSData *)_pkcs1FromSPKIPublic:(NSData *)spki {
+  NSUInteger o = 0;
+  NSData *seq = [self _derReadValue:spki offset:&o expectedTag:0x30];
+  if (!seq) return nil;
+  NSUInteger i = 0;
+  if (![self _derReadValue:seq offset:&i expectedTag:0x30]) return nil; // AlgorithmIdentifier
+  NSData *bit = [self _derReadValue:seq offset:&i expectedTag:0x03];    // subjectPublicKey
+  if (bit.length < 2) return nil;
+  // BIT STRING: first byte = unused bits (0), remainder = RSAPublicKey
+  return [bit subdataWithRange:NSMakeRange(1, bit.length - 1)];
+}
+
 + (NSString *)_pem:(NSString *)label der:(NSData *)der {
   NSString *b64 = [der base64EncodedStringWithOptions:NSDataBase64Encoding64CharacterLineLength | NSDataBase64EncodingEndLineWithLineFeed];
   return [NSString stringWithFormat:@"-----BEGIN %@-----\n%@\n-----END %@-----", label, b64, label];
@@ -78,13 +127,22 @@
     if (error) *error = [NSError errorWithDomain:@"AutumnOpsCrypto" code:1 userInfo:@{NSLocalizedDescriptionKey: @"invalid key PEM"}];
     return NULL;
   }
-  // Try as-is (SPKI / PKCS8), then as PKCS#1.
-  NSArray *tries = isPublic
-    ? @[ @{ (id)kSecAttrKeyType: (id)kSecAttrKeyTypeRSA, (id)kSecAttrKeyClass: (id)kSecAttrKeyClassPublic } ]
-    : @[ @{ (id)kSecAttrKeyType: (id)kSecAttrKeyTypeRSA, (id)kSecAttrKeyClass: (id)kSecAttrKeyClassPrivate } ];
-  for (NSDictionary *attrs in tries) {
+  // SecKeyCreateWithData 对 RSA 私钥要 PKCS#1；Flutter/iOS 存盘多为 PKCS#8（BEGIN PRIVATE KEY）。
+  // 公钥多为 SPKI；部分系统可直接吃 SPKI，仍准备 PKCS#1 候选以求兼容。
+  NSMutableArray<NSData *> *candidates = [NSMutableArray arrayWithObject:der];
+  if (isPublic) {
+    NSData *pkcs1 = [self _pkcs1FromSPKIPublic:der];
+    if (pkcs1.length && ![pkcs1 isEqualToData:der]) [candidates addObject:pkcs1];
+  } else {
+    NSData *pkcs1 = [self _pkcs1FromPKCS8Private:der];
+    if (pkcs1.length && ![pkcs1 isEqualToData:der]) [candidates addObject:pkcs1];
+  }
+  NSDictionary *attrs = isPublic
+    ? @{ (id)kSecAttrKeyType: (id)kSecAttrKeyTypeRSA, (id)kSecAttrKeyClass: (id)kSecAttrKeyClassPublic }
+    : @{ (id)kSecAttrKeyType: (id)kSecAttrKeyTypeRSA, (id)kSecAttrKeyClass: (id)kSecAttrKeyClassPrivate };
+  for (NSData *candidate in candidates) {
     CFErrorRef cfErr = NULL;
-    SecKeyRef key = SecKeyCreateWithData((__bridge CFDataRef)der, (__bridge CFDictionaryRef)attrs, &cfErr);
+    SecKeyRef key = SecKeyCreateWithData((__bridge CFDataRef)candidate, (__bridge CFDictionaryRef)attrs, &cfErr);
     if (key) {
       if (cfErr) CFRelease(cfErr);
       return key;

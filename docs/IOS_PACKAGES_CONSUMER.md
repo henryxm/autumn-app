@@ -73,11 +73,16 @@ CocoaPods **不支持** Flutter 式 `git + path` 子目录一条声明。发版�
 
 ---
 
-## 4. 验收清单
+## 4. 密钥格式（Crypto 互通）
+
+`SecKeyCreateWithData` 对 RSA **私钥**只要 PKCS#1；Flutter `OpsCrypto.privateKeyToPem` / iOS `generateRsa2048` 存盘均为 PKCS#8（`BEGIN PRIVATE KEY`）。`AutumnOpsCrypto` 加载时须 PKCS#8→PKCS#1（公钥 SPKI→PKCS#1 作候选），否则 Gate 导入 Flutter 分享证会在 `ensureSession` 报 `SecKeyCreateWithData failed`。
+
+## 5. 验收清单
 
 - [ ] probe → OpsEnroll 入驻 → 管理六 Tab 可读可改
 - [ ] 认领码：A issue → B claim → 两证可独立吊销
 - [ ] 分享口令 → 分享到聊天 → 对端气泡进 Gate → importWrapped
+- [ ] **Flutter 签发分享证 → XSVideo/XSign Gate 导入 + ensureSession 成功**（不得 `SecKeyCreateWithData failed`）
 - [ ] 发现 URL / 深链 / 扫码进 Gate.discover
 - [ ] 管理 IP / clearToken / 删当前 IP 门禁与 Flutter 一致
 - [ ] XSVideo + XSign：运维卡点开 **不再** toast「请在超然信中打开运维」
@@ -85,6 +90,6 @@ CocoaPods **不支持** Flutter 式 `git + path` 子目录一条声明。发版�
 
 ---
 
-## 5. 回滚
+## 6. 回滚
 
 宿主去掉 Pod 与 `AutumnOpsNativeHost` 调用，气泡恢复 toast（revert 挂载提交即可）。

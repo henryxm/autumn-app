@@ -1,6 +1,6 @@
 Pod::Spec.new do |s|
   s.name             = 'AutumnOpsCore'
-  s.version          = '0.1.3'
+  s.version          = '0.1.4'
   s.summary          = 'Autumn ops protocol client (RSA session, /ops/api/v1).'
   s.description      = 'Native ObjC client aligned with packages/autumn_ops. Security.framework only.'
   s.homepage         = 'https://git.minclouds.com/henryxm/autumn-app'

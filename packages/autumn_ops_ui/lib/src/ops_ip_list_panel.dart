@@ -255,7 +255,9 @@ class _OpsIpListPanelState extends State<OpsIpListPanel> {
     if (needToken) {
       token = await widget.resolveClearToken?.call(reason: '删除当前访问 IP：${row.ip}');
       if (token == null || token.isEmpty) {
-        _toast('已取消：需要清除确认令牌');
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) _toast('已取消：需要清除确认令牌');
+        });
         return;
       }
     }

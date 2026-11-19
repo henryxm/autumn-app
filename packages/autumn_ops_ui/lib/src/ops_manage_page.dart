@@ -117,8 +117,20 @@ class _OpsManageSitePageState extends State<OpsManageSitePage>
         title: Text(title),
         content: Text(body),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('取消')),
-          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('确认')),
+          TextButton(
+            onPressed: () {
+              FocusManager.instance.primaryFocus?.unfocus();
+              Navigator.pop(ctx, false);
+            },
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () {
+              FocusManager.instance.primaryFocus?.unfocus();
+              Navigator.pop(ctx, true);
+            },
+            child: const Text('确认'),
+          ),
         ],
       ),
     );
@@ -240,42 +252,18 @@ class _OpsManageSitePageState extends State<OpsManageSitePage>
   }
 
   Future<String?> _promptOldClearToken() async {
-    final ctrl = TextEditingController();
+    // 令牌输入框的 controller 由弹窗 State 持有：showDialog 的 Future 在 pop 时
+    // 即完成，但路由退场动画期间 TextField 仍挂在树上；外层立刻 dispose 会触发
+    // InheritedElement `_dependents.isEmpty` 红屏。
     final result = await showDialog<String>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('验证原令牌'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              '修改清除确认令牌须先验证原令牌。',
-              style: TextStyle(fontSize: 13, height: 1.4, color: Theme.of(ctx).colorScheme.onSurfaceVariant),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: ctrl,
-              obscureText: true,
-              autofocus: true,
-              decoration: const InputDecoration(
-                labelText: '原清除确认令牌',
-                border: OutlineInputBorder(),
-              ),
-              onSubmitted: (_) => Navigator.pop(ctx, ctrl.text.trim()),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('取消')),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, ctrl.text.trim()),
-            child: const Text('继续'),
-          ),
-        ],
+      builder: (ctx) => const _OpsSecureTokenDialog(
+        title: '验证原令牌',
+        reason: '修改清除确认令牌须先验证原令牌。',
+        fieldLabel: '原清除确认令牌',
+        confirmLabel: '继续',
       ),
     );
-    ctrl.dispose();
     final old = result?.trim() ?? '';
     if (old.isEmpty) return null;
     final check = OpsValidators.clearToken(old);
@@ -398,50 +386,18 @@ class _OpsManageSitePageState extends State<OpsManageSitePage>
       return null;
     }
     if (_hasVerifiedClearToken) return _verifiedClearToken;
-    final ctrl = TextEditingController(text: _clearToken);
     final result = await showDialog<String>(
       context: context,
-      builder: (ctx) {
-        return AlertDialog(
-          title: const Text('清除确认令牌'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                reason,
-                style: TextStyle(
-                  fontSize: 13,
-                  height: 1.4,
-                  color: Theme.of(ctx).colorScheme.onSurfaceVariant,
-                ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: ctrl,
-                obscureText: true,
-                autofocus: true,
-                decoration: const InputDecoration(
-                  labelText: '请输入清除确认令牌',
-                  helperText: '在系统加固 / 安全配置中查看',
-                  border: OutlineInputBorder(),
-                ),
-                onSubmitted: (_) => Navigator.pop(ctx, ctrl.text.trim()),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('取消')),
-            FilledButton(
-              onPressed: () => Navigator.pop(ctx, ctrl.text.trim()),
-              child: const Text('校验并继续'),
-            ),
-          ],
-        );
-      },
+      builder: (ctx) => _OpsSecureTokenDialog(
+        title: '清除确认令牌',
+        reason: reason,
+        fieldLabel: '请输入清除确认令牌',
+        fieldHelper: '在系统加固 / 安全配置中查看',
+        confirmLabel: '校验并继续',
+        initialText: _clearToken,
+      ),
     );
     final token = result?.trim() ?? '';
-    ctrl.dispose();
     if (token.isEmpty) return null;
     final check = OpsValidators.clearToken(token);
     if (!check.ok) {
@@ -523,7 +479,10 @@ class _OpsManageSitePageState extends State<OpsManageSitePage>
       reason: '关闭管理 IP 校验后仅依赖超管账号，须提供清除确认令牌。',
     );
     if (token == null || token.isEmpty) {
-      _toast('已取消：需要清除确认令牌');
+      // 等令牌弹窗路由卸完再 toast，避免与退场动画叠 Inherited 卸载。
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _toast('已取消：需要清除确认令牌');
+      });
       return;
     }
     await _run(() async {
@@ -1507,6 +1466,93 @@ enum _ClearTokenUiStatus {
   saved,
   ready,
   error,
+}
+
+/// 清除确认令牌输入弹窗：controller 由本 State 持有，在路由真正卸载时再 dispose，
+/// 避免 showDialog Future 返回后外层立刻 dispose 踩 `_dependents.isEmpty`。
+class _OpsSecureTokenDialog extends StatefulWidget {
+  const _OpsSecureTokenDialog({
+    required this.title,
+    required this.reason,
+    required this.fieldLabel,
+    required this.confirmLabel,
+    this.fieldHelper,
+    this.initialText = '',
+  });
+
+  final String title;
+  final String reason;
+  final String fieldLabel;
+  final String? fieldHelper;
+  final String confirmLabel;
+  final String initialText;
+
+  @override
+  State<_OpsSecureTokenDialog> createState() => _OpsSecureTokenDialogState();
+}
+
+class _OpsSecureTokenDialogState extends State<_OpsSecureTokenDialog> {
+  late final TextEditingController _ctrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = TextEditingController(text: widget.initialText);
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  void _pop([String? value]) {
+    // 先卸焦点再 pop，避免 EditableText 仍挂在即将卸载的 Inherited 上。
+    FocusManager.instance.primaryFocus?.unfocus();
+    Navigator.pop(context, value);
+  }
+
+  void _submit() => _pop(_ctrl.text.trim());
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return AlertDialog(
+      title: Text(widget.title),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            widget.reason,
+            style: TextStyle(fontSize: 13, height: 1.4, color: scheme.onSurfaceVariant),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _ctrl,
+            obscureText: true,
+            autofocus: true,
+            decoration: InputDecoration(
+              labelText: widget.fieldLabel,
+              helperText: widget.fieldHelper,
+              border: const OutlineInputBorder(),
+            ),
+            onSubmitted: (_) => _submit(),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => _pop(),
+          child: const Text('取消'),
+        ),
+        FilledButton(
+          onPressed: _submit,
+          child: Text(widget.confirmLabel),
+        ),
+      ],
+    );
+  }
 }
 
 /// 黑名单 Tab 顶部：自动拉黑阈值（同源 wall「黑名单阈值」/ 策略行 0.0.0.0）。

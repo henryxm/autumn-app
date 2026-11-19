@@ -688,7 +688,7 @@ class _OpsManageSitePageState extends State<OpsManageSitePage>
             Row(
               children: [
                 Chip(
-                  label: Text(discoverOn ? '发现页已开' : '发现页已关'),
+                  label: Text(discoverOn ? '发现已开' : '发现已关'),
                   backgroundColor: discoverOn
                       ? scheme.secondaryContainer.withValues(alpha: 0.7)
                       : scheme.errorContainer.withValues(alpha: 0.45),
@@ -698,13 +698,13 @@ class _OpsManageSitePageState extends State<OpsManageSitePage>
                   OutlinedButton(
                     onPressed:
                         _busy ? null : () => _setDiscoverEnabled(false),
-                    child: const Text('关闭发现页'),
+                    child: const Text('关闭'),
                   )
                 else
                   FilledButton(
                     onPressed:
                         _busy ? null : () => _setDiscoverEnabled(true),
-                    child: const Text('打开发现页'),
+                    child: const Text('打开'),
                   ),
               ],
             ),
@@ -720,7 +720,7 @@ class _OpsManageSitePageState extends State<OpsManageSitePage>
             Row(
               children: [
                 Chip(
-                  label: Text(gateOn ? '校验已开' : '校验已关'),
+                  label: Text(gateOn ? '已开' : '已关'),
                   backgroundColor: gateOn
                       ? scheme.secondaryContainer.withValues(alpha: 0.7)
                       : scheme.errorContainer.withValues(alpha: 0.45),
@@ -729,12 +729,12 @@ class _OpsManageSitePageState extends State<OpsManageSitePage>
                 if (gateOn)
                   OutlinedButton(
                     onPressed: _busy ? null : _disableAdminIpGate,
-                    child: const Text('关闭校验'),
+                    child: const Text('关闭'),
                   )
                 else
                   FilledButton(
                     onPressed: _busy ? null : _enableAdminIpGate,
-                    child: const Text('开启校验'),
+                    child: const Text('开启'),
                   ),
               ],
             ),

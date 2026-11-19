@@ -11,8 +11,9 @@
 
 | 角色 | 仓库 | 职责 |
 |------|------|------|
-| **源仓** | `https://git.minclouds.com/henryxm/autumn-app.git` | `packages/autumn_ops`、`packages/autumn_ops_ui` 唯一实现；`shell/` 仅薄壳验证 |
-| **产品宿主** | 如 `chaoranxin_flutter` → `crchat_flutter` | **git 子路径**引用 packages；只挂载公开入口，不写运维业务 UI |
+| **源仓** | `https://git.minclouds.com/henryxm/autumn-app.git` | `packages/autumn_ops`、`packages/autumn_ops_ui`（Flutter）与 `ios/AutumnOpsCore`、`ios/AutumnOpsUI`（原生 Pod）同仓实现；`shell/` 仅薄壳验证 |
+| **产品宿主（Flutter）** | 如 `chaoranxin_flutter` → `crchat_flutter` | **git 子路径**引用 packages；只挂载公开入口，不写运维业务 UI |
+| **产品宿主（iOS）** | XSVideo / XSign | CocoaPods path 引用 `ios/*`；`AutumnOpsNativeHost` 薄壳；见 [IOS_PACKAGES_CONSUMER.md](IOS_PACKAGES_CONSUMER.md) |
 | **独立壳** | 本仓 `shell/` | 本地 `path:` 引用 packages；发版前在此做功能验收 |
 
 ```text
@@ -29,10 +30,10 @@
 
 | 变更类型 | 改哪里 | 禁止 |
 |----------|--------|------|
-| 协议、模型、加解密、本地 store | `packages/autumn_ops` | 写 Flutter 业务页 |
-| 运维页面、表单、导入导出 UI | `packages/autumn_ops_ui` | import shell / 产品 App |
+| 协议、模型、加解密、本地 store | `packages/autumn_ops`（Flutter）/ `ios/AutumnOpsCore`（原生） | 写业务页；两端行为以 `AI_OPS_CERT` 为准 |
+| 运维页面、表单、导入导出 UI | `packages/autumn_ops_ui` / `ios/AutumnOpsUI` | import shell / 产品 App |
 | App 名、主题、平台工程、鸿蒙 override | `shell/` | 运维业务逻辑 |
-| 入口导航、谁能打开运维 | 产品宿主 | 复制/重写运维页 |
+| 入口导航、谁能打开运维 | 产品宿主（Flutter `AutumnOpsHost` / iOS `AutumnOpsNativeHost`） | 复制/重写运维页 |
 
 公开入口（宿主只挂这些）：
 
@@ -52,6 +53,7 @@
 - 格式：`ops-vMAJOR.MINOR.PATCH`（例：`ops-v0.1.0`、`ops-v0.2.0`）
 - 使用 **annotated tag**，打在 **已推送到 `origin/main` 的 commit** 上
 - 前缀 `ops-`：与本仓其它潜在 tag 区分，且与 pub `ref` 一一对应
+- **同一 tag 同时覆盖** Dart `packages/*` 与 iOS `ios/AutumnOps*`（不另开 `ops-ios-v*`，避免双轨）
 
 ### 3.2 SemVer 口径（packages 对宿主）
 

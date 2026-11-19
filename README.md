@@ -7,12 +7,16 @@ Autumn 运维证书**独立客户端**（协议 lib + UI lib + Flutter 启动壳
 
 ```text
 autumn-app/
-  packages/autumn_ops/      # 协议客户端
-  packages/autumn_ops_ui/   # Material 多站点列表/添加/管理
+  packages/autumn_ops/      # Flutter 协议客户端
+  packages/autumn_ops_ui/   # Flutter Material 多站点列表/添加/管理
+  ios/AutumnOpsCore/        # 原生 CocoaPods：协议（对齐 autumn_ops）
+  ios/AutumnOpsUI/          # 原生 CocoaPods：Gate/管理（对齐 autumn_ops_ui）
   shell/                    # Flutter 壳（Android / iOS / HarmonyOS / macOS / Web）
-  docs/                     # 发版/标签/外部宿主整合（PACKAGES_RELEASE_AND_CONSUMER.md）
+  docs/                     # PACKAGES_RELEASE / IOS_PACKAGES_CONSUMER
   .vscode/                  # Cursor 调试配置
 ```
+
+iOS 原生宿主（XSVideo / XSign）消费说明见 [docs/IOS_PACKAGES_CONSUMER.md](docs/IOS_PACKAGES_CONSUMER.md)。
 
 统一包名 / Bundle ID：`cn.org.autumn.ops`
 

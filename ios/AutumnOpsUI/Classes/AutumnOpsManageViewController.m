@@ -1,6 +1,8 @@
 #import "AutumnOpsManageViewController.h"
 #import "AutumnOpsRecoveryViewController.h"
 #import "AutumnOpsShareHooks.h"
+#import "AutumnOpsShieldPanelView.h"
+#import "AutumnOpsJumpPanelView.h"
 #import "AutumnOpsUIConfig.h"
 #import <AutumnOpsCore/AutumnOpsCore.h>
 #import <Masonry/Masonry.h>
@@ -56,10 +58,8 @@ typedef NS_ENUM(NSInteger, AutumnOpsClearTokenUI) {
 @property (nonatomic, copy) NSString *currentIp;
 @property (nonatomic) BOOL currentIpInAdmin;
 @property (nonatomic) BOOL currentIpInWhite;
-@property (nonatomic, strong) UIView *shieldPanel;
-@property (nonatomic, strong) UIView *jumpPanel;
-@property (nonatomic, strong) UITextView *shieldText;
-@property (nonatomic, strong) UITextView *jumpText;
+@property (nonatomic, strong) AutumnOpsShieldPanelView *shieldPanel;
+@property (nonatomic, strong) AutumnOpsJumpPanelView *jumpPanel;
 @property (nonatomic, strong, nullable) NSNumber *adminIpEnable;
 @property (nonatomic, strong, nullable) NSNumber *discoverEnabled;
 @property (nonatomic, strong, nullable) NSNumber *clearTokenConfigured;
@@ -252,53 +252,18 @@ typedef NS_ENUM(NSInteger, AutumnOpsClearTokenUI) {
   _whitePanel = [self _ipPanelKind:1];
   _blackPanel = [self _ipPanelKind:2];
 
-  _shieldPanel = [UIView new];
-  _shieldText = [UITextView new];
-  _shieldText.editable = NO;
-  _shieldText.font = [UIFont monospacedSystemFontOfSize:12 weight:UIFontWeightRegular];
-  UIButton *shieldRefresh = [UIButton buttonWithType:UIButtonTypeSystem];
-  [shieldRefresh setTitle:@"刷新盾牌" forState:UIControlStateNormal];
-  [shieldRefresh addTarget:self action:@selector(_loadShield) forControlEvents:UIControlEventTouchUpInside];
-  UIButton *shieldToggle = [UIButton buttonWithType:UIButtonTypeSystem];
-  [shieldToggle setTitle:@"切换总开关" forState:UIControlStateNormal];
-  [shieldToggle addTarget:self action:@selector(_toggleShieldEnable) forControlEvents:UIControlEventTouchUpInside];
-  UIButton *shieldAdd = [UIButton buttonWithType:UIButtonTypeSystem];
-  [shieldAdd setTitle:@"添加 uri=/" forState:UIControlStateNormal];
-  [shieldAdd addTarget:self action:@selector(_addDefaultShield) forControlEvents:UIControlEventTouchUpInside];
-  UIStackView *shieldTop = [[UIStackView alloc] initWithArrangedSubviews:@[shieldRefresh, shieldToggle, shieldAdd]];
-  shieldTop.axis = UILayoutConstraintAxisHorizontal;
-  shieldTop.spacing = 12;
-  [_shieldPanel addSubview:shieldTop];
-  [_shieldPanel addSubview:_shieldText];
-  [shieldTop mas_makeConstraints:^(MASConstraintMaker *make) {
-    make.top.left.right.equalTo(_shieldPanel).insets(UIEdgeInsetsMake(8, 16, 0, 16));
+  __weak typeof(self) weakSelf = self;
+  _shieldPanel = [[AutumnOpsShieldPanelView alloc] initWithClient:self.client toast:^(NSString *msg) {
+    [weakSelf _toast:msg];
+  } setBusy:^(BOOL busy) {
+    if (busy) [weakSelf _beginBusy];
+    else [weakSelf _endBusy];
   }];
-  [_shieldText mas_makeConstraints:^(MASConstraintMaker *make) {
-    make.top.equalTo(shieldTop.mas_bottom).offset(8);
-    make.left.right.bottom.equalTo(_shieldPanel).insets(UIEdgeInsetsMake(0, 8, 8, 8));
-  }];
-
-  _jumpPanel = [UIView new];
-  _jumpText = [UITextView new];
-  _jumpText.editable = NO;
-  _jumpText.font = [UIFont monospacedSystemFontOfSize:12 weight:UIFontWeightRegular];
-  UIButton *jumpRefresh = [UIButton buttonWithType:UIButtonTypeSystem];
-  [jumpRefresh setTitle:@"刷新跳转" forState:UIControlStateNormal];
-  [jumpRefresh addTarget:self action:@selector(_loadJump) forControlEvents:UIControlEventTouchUpInside];
-  UIButton *jumpAdd = [UIButton buttonWithType:UIButtonTypeSystem];
-  [jumpAdd setTitle:@"添加跳转" forState:UIControlStateNormal];
-  [jumpAdd addTarget:self action:@selector(_addJump) forControlEvents:UIControlEventTouchUpInside];
-  UIStackView *jumpTop = [[UIStackView alloc] initWithArrangedSubviews:@[jumpRefresh, jumpAdd]];
-  jumpTop.axis = UILayoutConstraintAxisHorizontal;
-  jumpTop.spacing = 12;
-  [_jumpPanel addSubview:jumpTop];
-  [_jumpPanel addSubview:_jumpText];
-  [jumpTop mas_makeConstraints:^(MASConstraintMaker *make) {
-    make.top.left.right.equalTo(_jumpPanel).insets(UIEdgeInsetsMake(8, 16, 0, 16));
-  }];
-  [_jumpText mas_makeConstraints:^(MASConstraintMaker *make) {
-    make.top.equalTo(jumpTop.mas_bottom).offset(8);
-    make.left.right.bottom.equalTo(_jumpPanel).insets(UIEdgeInsetsMake(0, 8, 8, 8));
+  _jumpPanel = [[AutumnOpsJumpPanelView alloc] initWithClient:self.client toast:^(NSString *msg) {
+    [weakSelf _toast:msg];
+  } setBusy:^(BOOL busy) {
+    if (busy) [weakSelf _beginBusy];
+    else [weakSelf _endBusy];
   }];
 
   // Cert
@@ -389,8 +354,8 @@ typedef NS_ENUM(NSInteger, AutumnOpsClearTokenUI) {
   if (i == 2) [self _loadIpKind:0];
   if (i == 3) [self _loadIpKind:1];
   if (i == 4) [self _loadIpKind:2];
-  if (i == 5) [self _loadShield];
-  if (i == 6) [self _loadJump];
+  if (i == 5) [self.shieldPanel reload];
+  if (i == 6) [self.jumpPanel reload];
 }
 
 #pragma mark - Refresh
@@ -459,8 +424,8 @@ typedef NS_ENUM(NSInteger, AutumnOpsClearTokenUI) {
     if (tab == 2) [self _loadIpKind:0];
     if (tab == 3) [self _loadIpKind:1];
     if (tab == 4) [self _loadIpKind:2];
-    if (tab == 5) [self _loadShield];
-    if (tab == 6) [self _loadJump];
+    if (tab == 5) [self.shieldPanel reload];
+    if (tab == 6) [self.jumpPanel reload];
   }];
 }
 
@@ -688,103 +653,6 @@ typedef NS_ENUM(NSInteger, AutumnOpsClearTokenUI) {
       if (!ip.length) { [self _endBusy]; [self _toast:@"黑名单须填写 IP"]; return; }
       [self.client ipBlackAdd:ip completion:done];
     }
-  }]];
-  [self presentViewController:a animated:YES completion:nil];
-}
-
-- (void)_loadShield {
-  [self _beginBusy];
-  [self.client shieldStatus:^(NSDictionary *status, NSError *e1) {
-    if (e1) {
-      [self _endBusy];
-      self.shieldText.text = e1.localizedDescription;
-      return;
-    }
-    [self.client shieldListPage:1 limit:100 completion:^(NSDictionary *page, NSError *e2) {
-      [self _endBusy];
-      if (e2) {
-        self.shieldText.text = e2.localizedDescription;
-        return;
-      }
-      NSMutableString *s = [NSMutableString stringWithFormat:@"status attack=%@ print=%@ enable=%@\n\n",
-                            status[@"attack"], status[@"print"], status[@"enable"]];
-      NSArray *list = [page[@"list"] isKindOfClass:[NSArray class]] ? page[@"list"] : @[];
-      for (id o in list) {
-        if (![o isKindOfClass:[NSDictionary class]]) continue;
-        NSDictionary *r = o;
-        [s appendFormat:@"#%@ %@ enable=%@ auto=%@\n", r[@"id"], r[@"uri"], r[@"enable"], r[@"auto"]];
-      }
-      self.shieldText.text = s;
-    }];
-  }];
-}
-
-- (void)_toggleShieldEnable {
-  [self _beginBusy];
-  [self.client shieldStatus:^(NSDictionary *status, NSError *error) {
-    if (error) {
-      [self _endBusy];
-      [self _toast:error.localizedDescription];
-      return;
-    }
-    BOOL next = ![status[@"enable"] boolValue];
-    [self.client shieldSetEnable:next completion:^(NSDictionary *data, NSError *e2) {
-      [self _endBusy];
-      if (e2) [self _toast:e2.localizedDescription];
-      else [self _loadShield];
-    }];
-  }];
-}
-
-- (void)_addDefaultShield {
-  [self _beginBusy];
-  [self.client shieldSaveUri:@"/" enable:YES autoValue:10000 completion:^(NSDictionary *data, NSError *error) {
-    [self _endBusy];
-    if (error) [self _toast:error.localizedDescription];
-    else [self _loadShield];
-  }];
-}
-
-- (void)_loadJump {
-  [self _beginBusy];
-  [self.client jumpListPage:1 limit:100 completion:^(NSDictionary *page, NSError *error) {
-    [self _endBusy];
-    if (error) {
-      self.jumpText.text = error.localizedDescription;
-      return;
-    }
-    NSMutableString *s = [NSMutableString string];
-    NSArray *list = [page[@"list"] isKindOfClass:[NSArray class]] ? page[@"list"] : @[];
-    for (id o in list) {
-      if (![o isKindOfClass:[NSDictionary class]]) continue;
-      NSDictionary *r = o;
-      [s appendFormat:@"#%@ %@%@ → %@ enable=%@\n", r[@"id"], r[@"host"], r[@"uri"], r[@"url"], r[@"enable"]];
-    }
-    if (!s.length) [s appendString:@"暂无跳转规则"];
-    self.jumpText.text = s;
-  }];
-}
-
-- (void)_addJump {
-  UIAlertController *a = [UIAlertController alertControllerWithTitle:@"添加跳转" message:nil preferredStyle:UIAlertControllerStyleAlert];
-  [a addTextFieldWithConfigurationHandler:^(UITextField *tf) { tf.placeholder = @"host"; }];
-  [a addTextFieldWithConfigurationHandler:^(UITextField *tf) { tf.placeholder = @"uri"; tf.text = @"/"; }];
-  [a addTextFieldWithConfigurationHandler:^(UITextField *tf) { tf.placeholder = @"url"; }];
-  [a addAction:[UIAlertAction actionWithTitle:@"取消" style:UIAlertActionStyleCancel handler:nil]];
-  [a addAction:[UIAlertAction actionWithTitle:@"保存" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
-    NSString *host = [a.textFields[0].text stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
-    NSString *uri = [a.textFields[1].text stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
-    NSString *url = [a.textFields[2].text stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
-    if (!host.length || !uri.length || !url.length) {
-      [self _toast:@"host、uri、url 均不能为空"];
-      return;
-    }
-    [self _beginBusy];
-    [self.client jumpSaveHost:host uri:uri url:url enable:YES completion:^(NSDictionary *data, NSError *error) {
-      [self _endBusy];
-      if (error) [self _toast:error.localizedDescription];
-      else [self _loadJump];
-    }];
   }]];
   [self presentViewController:a animated:YES completion:nil];
 }

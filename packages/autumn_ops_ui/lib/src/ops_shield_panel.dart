@@ -2,7 +2,9 @@ import 'package:autumn_ops/autumn_ops.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-/// 盾牌：运行时三开关 + uri 规则列表。
+import 'ops_chrome.dart';
+
+/// 盾牌：设置卡三开关 + fused 添加条 + 规则行。
 class OpsShieldPanel extends StatefulWidget {
   const OpsShieldPanel({
     super.key,
@@ -150,7 +152,7 @@ class _OpsShieldPanelState extends State<OpsShieldPanel> {
       final c = await widget.client();
       await c!.shieldSave(uri: uri, enable: true, auto: auto);
       _uriCtrl.clear();
-      widget.onToast('已添加盾牌规则：$uri');
+      widget.onToast('已添加：$uri');
       await _reload();
     });
   }
@@ -168,11 +170,23 @@ class _OpsShieldPanelState extends State<OpsShieldPanel> {
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('删除盾牌规则'),
+        title: const Text('删除规则'),
         content: Text('确定删除 ${row.uri}？'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('取消')),
-          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('删除')),
+          TextButton(
+            onPressed: () {
+              FocusManager.instance.primaryFocus?.unfocus();
+              Navigator.pop(ctx, false);
+            },
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () {
+              FocusManager.instance.primaryFocus?.unfocus();
+              Navigator.pop(ctx, true);
+            },
+            child: const Text('删除'),
+          ),
         ],
       ),
     );
@@ -197,119 +211,131 @@ class _OpsShieldPanelState extends State<OpsShieldPanel> {
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
         children: [
           Text(
-            '攻击防御（盾牌）',
+            '攻击防御',
             style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
           ),
           const SizedBox(height: 4),
           Text(
-            '配置需防护的资源路径；总开关写库生效。攻击模式与打印为运行时开关。',
+            '配置需防护的资源路径；总开关写库生效，攻击模式与打印为运行时开关。',
             style: TextStyle(fontSize: 13, height: 1.4, color: scheme.onSurfaceVariant),
           ),
           const SizedBox(height: 12),
-          if (status != null) ...[
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              title: const Text('总开关'),
-              subtitle: const Text('写库启用/关闭默认盾牌规则集'),
-              value: status.enable,
-              onChanged: widget.busy ? null : (v) => _setStatus(enable: v),
-            ),
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              title: const Text('攻击模式'),
-              subtitle: const Text('开启后对未放行 IP 拦截匹配资源'),
-              value: status.attack,
-              onChanged: widget.busy ? null : (v) => _setStatus(attack: v),
-            ),
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              title: const Text('打印日志'),
-              subtitle: const Text('拦截/放行时输出防护日志'),
-              value: status.printEnabled,
-              onChanged: widget.busy ? null : (v) => _setStatus(printEnabled: v),
-            ),
-            const SizedBox(height: 8),
-          ],
-          Row(
-            children: [
-              Expanded(
-                flex: 3,
-                child: TextField(
-                  controller: _uriCtrl,
-                  enabled: !widget.busy,
-                  decoration: const InputDecoration(
-                    labelText: '资源 uri',
-                    hintText: '/',
-                    border: OutlineInputBorder(),
-                    isDense: true,
-                  ),
+          if (status != null)
+            OpsSectionCard(
+              title: '运行开关',
+              body: '总开关写入数据库；攻击模式与打印仅影响当前进程内存。',
+              children: [
+                OpsSwitchRow(
+                  title: '总开关',
+                  subtitle: '启用或关闭默认盾牌规则集',
+                  value: status.enable,
+                  onChanged: widget.busy ? null : (v) => _setStatus(enable: v),
                 ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                flex: 2,
-                child: TextField(
-                  controller: _autoCtrl,
-                  enabled: !widget.busy,
-                  keyboardType: TextInputType.number,
-                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                  decoration: const InputDecoration(
-                    labelText: 'auto',
-                    border: OutlineInputBorder(),
-                    isDense: true,
-                  ),
+                OpsSwitchRow(
+                  title: '攻击模式',
+                  subtitle: '对未放行 IP 拦截匹配资源',
+                  value: status.attack,
+                  onChanged: widget.busy ? null : (v) => _setStatus(attack: v),
                 ),
-              ),
-              const SizedBox(width: 8),
-              FilledButton(
-                onPressed: widget.busy ? null : _addRule,
-                child: const Text('添加'),
-              ),
-            ],
+                OpsSwitchRow(
+                  title: '打印日志',
+                  subtitle: '拦截与放行时输出防护日志',
+                  value: status.printEnabled,
+                  onChanged: widget.busy ? null : (v) => _setStatus(printEnabled: v),
+                ),
+              ],
+            ),
+          const SizedBox(height: 12),
+          OpsFusedDualFieldAction(
+            primaryController: _uriCtrl,
+            secondaryController: _autoCtrl,
+            primaryHint: '资源路径，如 /',
+            secondaryHint: '自动阈值',
+            actionLabel: '添加',
+            enabled: !widget.busy,
+            secondaryKeyboardType: TextInputType.number,
+            secondaryFormatters: [FilteringTextInputFormatter.digitsOnly],
+            onAction: widget.busy ? null : _addRule,
           ),
           const SizedBox(height: 12),
-          Text(
-            _count <= 0 ? '暂无规则' : '共 $_count 条',
-            style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
+          OpsCountChipBar(
+            loaded: _rows.length,
+            total: _count,
+            hasMore: _hasMore && !_loading,
+            loadingMore: _loadingMore,
+            onLoadMore: widget.busy ? null : _loadMore,
+            emptyLabel: '暂无规则',
           ),
-          if (_loading)
+          const SizedBox(height: 8),
+          if (_loading && _rows.isEmpty)
             const Padding(
-              padding: EdgeInsets.only(top: 24),
+              padding: EdgeInsets.symmetric(vertical: 40),
               child: Center(child: CircularProgressIndicator()),
             )
-          else if (_error != null)
+          else if (_error != null && _rows.isEmpty)
             Padding(
-              padding: const EdgeInsets.only(top: 16),
-              child: Text(_error!, style: TextStyle(color: scheme.error)),
+              padding: const EdgeInsets.symmetric(vertical: 24),
+              child: Column(
+                children: [
+                  Text('加载失败：$_error', textAlign: TextAlign.center),
+                  const SizedBox(height: 8),
+                  OutlinedButton(onPressed: _reload, child: const Text('重试')),
+                ],
+              ),
+            )
+          else if (_rows.isEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 36),
+              child: Center(
+                child: Text(
+                  '暂无规则，在上方填写路径后添加',
+                  style: TextStyle(color: scheme.onSurfaceVariant),
+                ),
+              ),
             )
           else
             ..._rows.map((row) {
-              return Card(
-                margin: const EdgeInsets.only(top: 8),
-                child: ListTile(
-                  title: Text(row.uri, style: const TextStyle(fontFamily: 'monospace')),
-                  subtitle: Text('auto ${row.auto} · ${row.enable ? '已开启' : '已关闭'}'),
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      TextButton(
-                        onPressed: widget.busy ? null : () => _toggleRow(row),
-                        child: Text(row.enable ? '关闭' : '开启'),
-                      ),
-                      IconButton(
-                        onPressed: widget.busy ? null : () => _deleteRow(row),
-                        icon: const Icon(Icons.delete_outline),
-                        tooltip: '删除',
-                      ),
-                    ],
+              return OpsRuleRowChrome(
+                title: row.uri,
+                subtitle: '自动阈值 · ${row.auto}',
+                active: row.enable,
+                statusLabel: row.enable ? '已开启' : '已关闭',
+                actions: [
+                  TextButton(
+                    onPressed: widget.busy ? null : () => _toggleRow(row),
+                    child: Text(row.enable ? '关闭' : '开启'),
                   ),
-                ),
+                  TextButton(
+                    onPressed: widget.busy ? null : () => _deleteRow(row),
+                    style: TextButton.styleFrom(foregroundColor: scheme.error),
+                    child: const Text('删除'),
+                  ),
+                ],
               );
             }),
           if (_loadingMore)
             const Padding(
-              padding: EdgeInsets.only(top: 12),
-              child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+              padding: EdgeInsets.symmetric(vertical: 16),
+              child: Center(
+                child: SizedBox(
+                  width: 22,
+                  height: 22,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+              ),
+            )
+          else if (_rows.isNotEmpty && !_hasMore)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(0, 8, 0, 4),
+              child: Center(
+                child: Text(
+                  '已全部加载',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: scheme.onSurfaceVariant.withValues(alpha: 0.8),
+                  ),
+                ),
+              ),
             ),
         ],
       ),

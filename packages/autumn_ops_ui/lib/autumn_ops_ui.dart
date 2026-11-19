@@ -12,6 +12,7 @@ export 'src/ops_shield_panel.dart';
 export 'src/ops_jump_panel.dart';
 export 'src/ops_runtime_panel.dart';
 export 'src/ops_fused_field.dart';
+export 'src/ops_chrome.dart';
 export 'src/ops_keyboard_dismiss.dart';
 export 'src/ops_recovery_page.dart';
 export 'src/ops_site_io.dart';

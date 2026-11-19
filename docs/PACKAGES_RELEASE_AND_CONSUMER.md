@@ -67,25 +67,14 @@
 
 ### 3.3 产品仓 `ref` 规则（双轨）
 
-| 场景 | `ref` | 说明 |
-|------|-------|------|
-| **开发联调** | `main`（允许） | 跟源仓最新；`pub get` **不会**自动追新 tip，须主动 upgrade（见下） |
-| **发版 / 对外稳定包 / 要可复现的 CI** | `ops-v*` tag 或完整 SHA | 锁定已知好坏版本 |
-| 个人未推送改动 | `pubspec_overrides.yaml` path | 仅本机，勿提交 |
+| 场景 | `ref` / 手段 | 说明 |
+|------|--------------|------|
+| **稳定（默认，可提交 / CI）** | **`ops-v*` tag** 或完整 SHA | 宿主 `pubspec.yaml` **禁止**长期 `ref: main` |
+| **本机联调** | gitignore 的 `pubspec_overrides.yaml`（path 或临时 main） | 见超然信 `pubspec_overrides.yaml.example`；勿提交 |
+| **源仓发版** | `./scripts/release_ops_tag.sh X.Y.Z "说明"` | bump packages + ios podspec → annotated tag → push |
+| **宿主跟版** | `./scripts/sync_autumn_ops.sh ops-vX.Y.Z` | 改 yaml ref + `flutter pub get` → 提交 yaml/lock |
 
-**开发期跟 `main` 时，如何拿到远端新提交：**
-
-`pubspec.lock` 会钉死当时解析到的 commit。只跑 `flutter pub get` **不会**更新到更新的 `main` tip。
-
-```bash
-cd crchat_flutter
-# 将 autumn_ops_ui（及传递的 autumn_ops）刷新到 origin/main 当前 tip，并改写 lock
-flutter pub upgrade autumn_ops_ui
-
-# 核对 lock 中 resolved-ref / revision 是否已变
-```
-
-发版前：把 `ref` 从 `main` 改成刚打的 `ops-vX.Y.Z`，再 `flutter pub get`，提交 yaml + lock。
+`pubspec.lock` 会钉死 resolved commit；换 tag 后必须跑 sync 脚本或等价 `pub get`，并提交 lock。
 ---
 
 ## 4. 源仓标准发版流程（逐步）
@@ -123,17 +112,17 @@ git log -1 --oneline
 git push origin main   # 若尚未推送
 ```
 
-### 4.3 打 tag 并推送
+### 4.3 打 tag 并推送（推荐脚本）
 
 ```bash
-# 将 X.Y.Z 换成新版本；COMMIT 可省略（默认 HEAD）
-NEW=0.2.0
-git tag -a "ops-v${NEW}" -m "ops packages v${NEW}: <一句话变更说明>"
-git push origin "ops-v${NEW}"
-
-# 校验远端
-git ls-remote --tags origin "ops-v${NEW}"
+# 工作区干净，且已与 origin/main 对齐
+./scripts/release_ops_tag.sh 0.2.0 "一句话变更说明"
+git push origin main
+git push origin ops-v0.2.0
+git ls-remote --tags origin ops-v0.2.0
 ```
+
+手打 tag 亦可，但须同步 bump `packages/*/pubspec.yaml` 与 `ios/*/ *.podspec` 的 `version`。
 
 **注意：**
 
@@ -156,10 +145,10 @@ git ls-remote --tags origin "ops-v${NEW}"
 
 权威消费文档：`crchat_flutter/lib/doc/AUTUMN_OPS_GIT_DEP.md`。摘要：
 
-1. 改 `crchat_flutter/pubspec.yaml` 中 `autumn_ops_ui.git.ref` 为新 tag  
-2. `cd crchat_flutter && flutter pub get`  
-3. 确认 `pubspec.lock` 中 `autumn_ops` / `autumn_ops_ui` 的 `source: git` 且指向新 revision  
-4. 编译；从「管理员审核 → Autumn 运维」走主路径冒烟  
+1. `cd crchat_flutter && ./scripts/sync_autumn_ops.sh ops-vX.Y.Z`（无 overrides）  
+2. 确认 lock 中 `resolved-ref` 对应该 tag  
+3. 提交 `pubspec.yaml` + `pubspec.lock`  
+4. 编译；运维卡 / 发现 / 分享冒烟  
 5. **不要**为跟版在产品仓新增运维业务页  
 
 `share_plus` 等须继续由宿主 `dependency_overrides` 收敛到 CPF git（与 shell 同策略），否则 hosted/git 双源会导致 pub 失败。

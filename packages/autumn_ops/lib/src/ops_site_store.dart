@@ -127,4 +127,54 @@ class OpsSiteStore {
   Future<void> saveCredential(OpsSiteEntry site, OpsCredentialBundle bundle) {
     return credentialStoreFor(site).save(bundle);
   }
+
+  /// Prefer enrolled match; used by Gate when opening `.ops` / discover.
+  Future<OpsSiteEntry?> findByCertId(String certId) async {
+    final id = certId.trim();
+    if (id.isEmpty) {
+      return null;
+    }
+    final list = await listSites();
+    OpsSiteEntry? enrolled;
+    OpsSiteEntry? any;
+    for (final e in list) {
+      if (e.certId != id) {
+        continue;
+      }
+      any ??= e;
+      if (e.enrolled) {
+        enrolled = e;
+        break;
+      }
+    }
+    return enrolled ?? any;
+  }
+
+  /// Match after [OpsSiteEntry.normalizeBaseUrl]; enrolled preferred.
+  Future<OpsSiteEntry?> findByBaseUrl(String baseUrl) async {
+    final n = OpsSiteEntry.normalizeBaseUrl(baseUrl);
+    if (n.isEmpty) {
+      return null;
+    }
+    final list = await listSites();
+    OpsSiteEntry? enrolled;
+    OpsSiteEntry? any;
+    for (final e in list) {
+      if (OpsSiteEntry.normalizeBaseUrl(e.baseUrl) != n) {
+        continue;
+      }
+      any ??= e;
+      if (e.enrolled) {
+        enrolled = e;
+        break;
+      }
+    }
+    return enrolled ?? any;
+  }
+
+  /// True when index row exists and local credential file is readable.
+  Future<bool> hasLocalCredential(OpsSiteEntry site) async {
+    final b = await loadCredential(site);
+    return b != null;
+  }
 }

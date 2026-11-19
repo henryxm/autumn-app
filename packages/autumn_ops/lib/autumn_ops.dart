@@ -11,3 +11,4 @@ export 'src/ops_site_store.dart';
 export 'src/ops_models.dart';
 export 'src/ops_validators.dart';
 export 'src/ops_backup_file.dart';
+export 'src/ops_discover.dart';

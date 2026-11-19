@@ -36,8 +36,12 @@
 
 公开入口（宿主只挂这些）：
 
-- `AutumnOpsHome` — 多站点首页（子页由包内 `Navigator` 完成）
+- `AutumnOpsHome` — 多站点首页（独立 shell）
+- `AutumnOpsGatePage` — 产品深链：`.ops` 打开 / `{base}/ops/discover` 自动探测（超然信）
+- `AutumnOpsDiscover` — 解析/生成发现 URL（逻辑在 `autumn_ops`）
 - `OpsKeyboardDismiss` — 可选，供宿主 `MaterialApp.builder`
+
+产品默认**无常驻入口**；经消息 `.ops`、收藏、扫码/链接发现进入。
 
 ---
 

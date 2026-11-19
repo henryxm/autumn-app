@@ -6,6 +6,7 @@ import 'package:share_plus/share_plus.dart';
 import 'ops_backup_io.dart';
 import 'ops_fused_field.dart';
 import 'ops_ip_list_panel.dart';
+import 'ops_pages.dart';
 import 'ops_recovery_page.dart';
 import 'ops_runtime_panel.dart';
 import 'ops_site_io.dart';
@@ -549,6 +550,10 @@ class _OpsManageSitePageState extends State<OpsManageSitePage>
       appBar: AppBar(
         title: Text(site?.title ?? '站点管理'),
         actions: [
+          TextButton(
+            onPressed: _busy ? null : _goSiteList,
+            child: const Text('站点'),
+          ),
           IconButton(
             onPressed: _busy ? null : _refreshRemote,
             icon: const Icon(Icons.refresh),
@@ -691,6 +696,38 @@ class _OpsManageSitePageState extends State<OpsManageSitePage>
             label: const Text('认领当前 IP 为管理 IP'),
           ),
         ],
+        const SizedBox(height: 12),
+        _sectionCard(
+          title: '分享管理入口',
+          body:
+              '生成发现链接（不含口令）。他人用超然信扫码或点开后可自动探测本站运维能力。',
+          children: [
+            SelectableText(
+              AutumnOpsDiscover.shareUrlForBase(site.baseUrl),
+              style: const TextStyle(fontSize: 13),
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: _busy ? null : () => _copyDiscoverLink(site),
+                    icon: const Icon(Icons.copy, size: 18),
+                    label: const Text('复制链接'),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: FilledButton.tonalIcon(
+                    onPressed: _busy ? null : () => _shareDiscoverLink(site),
+                    icon: const Icon(Icons.share, size: 18),
+                    label: const Text('分享'),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
         const SizedBox(height: 8),
         OutlinedButton.icon(
           onPressed: _busy ? null : _openRecovery,
@@ -1082,6 +1119,35 @@ class _OpsManageSitePageState extends State<OpsManageSitePage>
       setState(() => _lastIssue = issued);
       _toast('已签发认领码（约 30 分钟有效）');
     });
+  }
+
+  void _goSiteList() {
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute<void>(builder: (_) => const OpsSitesPage()),
+      (route) => route.isFirst,
+    );
+  }
+
+  Future<void> _copyDiscoverLink(OpsSiteEntry site) async {
+    final url = AutumnOpsDiscover.shareUrlForBase(site.baseUrl);
+    if (url.isEmpty) {
+      _toast('无法生成链接');
+      return;
+    }
+    await Clipboard.setData(ClipboardData(text: url));
+    _toast('已复制发现链接');
+  }
+
+  Future<void> _shareDiscoverLink(OpsSiteEntry site) async {
+    final url = AutumnOpsDiscover.shareUrlForBase(site.baseUrl);
+    if (url.isEmpty) {
+      _toast('无法生成链接');
+      return;
+    }
+    await Share.share(
+      'Autumn 运维发现入口（请用超然信打开）：\n$url',
+      subject: 'Autumn 运维',
+    );
   }
 
   Future<void> _exportBackup(OpsSiteEntry site) async {

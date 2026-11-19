@@ -159,7 +159,17 @@ enum _AddMode { enroll, claim, importBackup }
 
 /// Add site: probe → enroll / claim / import backup → manage.
 class OpsAddSitePage extends StatefulWidget {
-  const OpsAddSitePage({super.key});
+  const OpsAddSitePage({
+    super.key,
+    this.initialBaseUrl,
+    this.autoProbe = false,
+  });
+
+  /// Prefill address (e.g. from discover Gate).
+  final String? initialBaseUrl;
+
+  /// When true and [initialBaseUrl] set, run probe after first frame.
+  final bool autoProbe;
 
   @override
   State<OpsAddSitePage> createState() => _OpsAddSitePageState();
@@ -178,6 +188,24 @@ class _OpsAddSitePageState extends State<OpsAddSitePage> {
   _AddMode _mode = _AddMode.enroll;
   OpsBackupFile? _pickedBackup;
   String? _pickedBackupName;
+
+  @override
+  void initState() {
+    super.initState();
+    final initial = (widget.initialBaseUrl ?? '').trim();
+    if (initial.isNotEmpty) {
+      final n = OpsSiteEntry.normalizeBaseUrl(initial);
+      _urlCtrl.text = n;
+      _titleCtrl.text = n;
+      if (widget.autoProbe) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) {
+            _probe();
+          }
+        });
+      }
+    }
+  }
 
   @override
   void dispose() {

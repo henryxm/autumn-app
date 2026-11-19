@@ -195,17 +195,17 @@ class OpsValidators {
     return const OpsValidateResult.ok();
   }
 
-  /// 备份密文（`.ops` 内 wrapped 字段或旧版纯 Base64）。
-  static OpsValidateResult backupBlob(String raw) {
+  /// 运维密钥口令包裹密文（`AutumnOps.wrapped` / 载荷 JSON）。
+  static OpsValidateResult wrappedBlob(String raw) {
     final s = raw.trim();
     if (s.isEmpty) {
-      return const OpsValidateResult.fail('备份内容为空，请重新选择 .ops 文件');
+      return const OpsValidateResult.fail('运维密文为空');
     }
     if (s.length < 32) {
-      return const OpsValidateResult.fail('备份内容过短，请确认选择了完整的 .ops 文件');
+      return const OpsValidateResult.fail('运维密文过短，请确认内容完整');
     }
     if (s.length > 200000) {
-      return const OpsValidateResult.fail('备份内容过长');
+      return const OpsValidateResult.fail('运维密文过长');
     }
     return const OpsValidateResult.ok();
   }

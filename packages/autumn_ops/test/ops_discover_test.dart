@@ -45,9 +45,4 @@ void main() {
     );
   });
 
-  test('isOpsBackupFilename', () {
-    expect(AutumnOpsDiscover.isOpsBackupFilename('x.ops'), isTrue);
-    expect(AutumnOpsDiscover.isOpsBackupFilename('X.OPS'), isTrue);
-    expect(AutumnOpsDiscover.isOpsBackupFilename('x.pdf'), isFalse);
-  });
 }

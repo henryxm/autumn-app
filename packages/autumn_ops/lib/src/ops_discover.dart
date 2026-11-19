@@ -1,4 +1,3 @@
-import 'ops_backup_file.dart';
 import 'ops_site_store.dart';
 
 /// Discover / share URL helpers for Autumn ops (T0; no secrets).
@@ -17,15 +16,6 @@ abstract final class AutumnOpsDiscover {
       return '';
     }
     return '$b$discoverPath';
-  }
-
-  /// True when [filename] looks like an `.ops` backup.
-  static bool isOpsBackupFilename(String? filename) {
-    final n = (filename ?? '').trim().toLowerCase();
-    if (n.isEmpty) {
-      return false;
-    }
-    return n.endsWith('.${OpsBackupFile.fileExtension}');
   }
 
   /// Parse host deep link / https discover URL / flagged URL into baseUrl.

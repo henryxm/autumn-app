@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:uuid/uuid.dart';
 
-import 'ops_backup_io.dart';
+import 'ops_payload_io.dart';
 import 'ops_fused_field.dart';
 import 'ops_manage_page.dart';
 import 'ops_recovery_page.dart';
@@ -76,7 +76,7 @@ class _OpsSitesPageState extends State<OpsSitesPage> {
                     padding: EdgeInsets.all(24),
                     child: Text(
                       '还没有站点。\n'
-                      '点右上角「+」：① 首次口令 ② 认领码（文字）③ 换机选 .ops 备份文件。',
+                      '点右上角「+」：① 首次口令 ② 认领码（文字）③ 导入运维凭证文件。',
                       textAlign: TextAlign.center,
                       style: TextStyle(height: 1.5),
                     ),
@@ -155,9 +155,9 @@ class _OpsSitesPageState extends State<OpsSitesPage> {
   }
 }
 
-enum _AddMode { enroll, claim, importBackup }
+enum _AddMode { enroll, claim, importCredential }
 
-/// Add site: probe → enroll / claim / import backup → manage.
+/// Add site: probe → enroll / claim / import credential → manage.
 class OpsAddSitePage extends StatefulWidget {
   const OpsAddSitePage({
     super.key,
@@ -186,8 +186,8 @@ class _OpsAddSitePageState extends State<OpsAddSitePage> {
   String? _resolvedBaseUrl;
   bool _busy = false;
   _AddMode _mode = _AddMode.enroll;
-  OpsBackupFile? _pickedBackup;
-  String? _pickedBackupName;
+  AutumnOpsPayload? _pickedCredential;
+  String? _pickedCredentialName;
 
   @override
   void initState() {
@@ -285,8 +285,8 @@ class _OpsAddSitePageState extends State<OpsAddSitePage> {
           _urlCtrl.text = resolved.baseUrl;
         }
         if (resolved.outcome.kind == OpsProbeKind.needReset) {
-          // 他机备份优先于重置；认领码仍可选手动切换。
-          _mode = _AddMode.importBackup;
+          // 同证凭证优先于重置；认领码仍可选手动切换。
+          _mode = _AddMode.importCredential;
         } else if (resolved.outcome.kind == OpsProbeKind.pending) {
           _mode = _AddMode.enroll;
         }
@@ -432,27 +432,27 @@ class _OpsAddSitePageState extends State<OpsAddSitePage> {
     );
   }
 
-  Future<void> _pickBackupFile() async {
-    final picked = await pickOpsBackupFile();
+  Future<void> _pickCredentialFile() async {
+    final picked = await pickAutumnOpsCredentialFile();
     if (!mounted) return;
     if (picked.cancelled) return;
     if (!picked.ok) {
-      setState(() => _status = picked.error ?? '选择备份失败');
+      setState(() => _status = picked.error ?? '选择凭证失败');
       return;
     }
     setState(() {
-      _pickedBackup = picked.file;
-      _pickedBackupName = picked.displayName;
-      _status = '已选择备份：${picked.displayName}';
-      final hintUrl = picked.file!.baseUrl;
+      _pickedCredential = picked.payload;
+      _pickedCredentialName = picked.displayName;
+      _status = '已选择凭证：${picked.displayName}';
+      final hintUrl = picked.payload!.baseUrl;
       if ((hintUrl ?? '').isNotEmpty && _urlCtrl.text.trim().isEmpty) {
         _urlCtrl.text = hintUrl!;
       }
     });
   }
 
-  /// 他机导出的 .ops → 本机落库同一 certId（换机/重装，不是给同事单独发证）。
-  Future<void> _importBackupAndOpen() async {
+  /// 他机导出的运维凭证 → 本机落库同一 certId（同证共享，不是给同事单独发证）。
+  Future<void> _importCredentialAndOpen() async {
     if (_busy) return;
     final base = _effectiveBaseUrl();
     final endpointCheck = OpsValidators.siteEndpoint(_urlCtrl.text);
@@ -467,9 +467,9 @@ class _OpsAddSitePageState extends State<OpsAddSitePage> {
       setState(() => _status = '请先成功探测到 Autumn 运维接口');
       return;
     }
-    final backup = _pickedBackup;
-    if (backup == null) {
-      setState(() => _status = '请先点「选择 .ops 备份文件」');
+    final credential = _pickedCredential;
+    if (credential == null) {
+      setState(() => _status = '请先点「选择运维凭证文件」');
       return;
     }
     final passCheck = OpsValidators.sharePassphrase(_importPassCtrl.text);
@@ -492,7 +492,7 @@ class _OpsAddSitePageState extends State<OpsAddSitePage> {
       );
       final cred = store.credentialStoreFor(site);
       final client = AutumnOpsClient(baseUrl: base, store: cred);
-      await client.importWrapped(backup.wrapped, _importPassCtrl.text.trim());
+      await client.importWrapped(credential.wrapped, _importPassCtrl.text.trim());
       final bundle = await client.currentBundle();
       if (bundle == null) {
         await cred.clear();
@@ -500,7 +500,7 @@ class _OpsAddSitePageState extends State<OpsAddSitePage> {
         return;
       }
       final probeFp = _outcome?.result?.serverFingerprint;
-      final fileFp = backup.serverFingerprint ?? bundle.serverFingerprint;
+      final fileFp = credential.serverFingerprint ?? bundle.serverFingerprint;
       if (probeFp != null &&
           probeFp.isNotEmpty &&
           (fileFp ?? '').isNotEmpty &&
@@ -508,7 +508,7 @@ class _OpsAddSitePageState extends State<OpsAddSitePage> {
         await cred.clear();
         setState(() {
           _status =
-              '备份与当前探测站点指纹不一致，已取消。请确认地址是否为同一 Autumn 实例。';
+              '凭证与当前探测站点指纹不一致，已取消。请确认地址是否为同一 Autumn 实例。';
         });
         return;
       }
@@ -535,7 +535,7 @@ class _OpsAddSitePageState extends State<OpsAddSitePage> {
       setState(() {
         _status =
             '导入失败：${OpsErrorMessage.display(e)}\n'
-            '请核对：① 是否选对了 .ops 文件；② 分享口令是否与导出时一致；'
+            '请核对：① 是否选对了运维凭证；② 分享口令是否与导出时一致；'
             '③ 证书是否已在服务端吊销（若是请改用「认领码」）。';
       });
     } finally {
@@ -662,7 +662,7 @@ class _OpsAddSitePageState extends State<OpsAddSitePage> {
             if (!canEnroll) ...[
               const SizedBox(height: 8),
               Text(
-                '当前不可首次入驻。已有管理员设备 →「认领码」；换机带了 .ops →「换机备份」。',
+                '当前不可首次入驻。已有管理员设备 →「认领码」；同证共享 →「导入凭证」。',
                 style: hintStyle,
               ),
             ],
@@ -673,7 +673,7 @@ class _OpsAddSitePageState extends State<OpsAddSitePage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              '粘贴已登录设备「证书」页签发的认领码（文字，约 30 分钟）。不是 .ops 文件。',
+              '粘贴已登录设备「证书」页签发的认领码（文字，约 30 分钟）。不是运维密钥消息。',
               style: hintStyle,
             ),
             const SizedBox(height: 10),
@@ -687,29 +687,34 @@ class _OpsAddSitePageState extends State<OpsAddSitePage> {
             ),
           ],
         );
-      case _AddMode.importBackup:
+      case _AddMode.importCredential:
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              '选择他机导出的 .ops 文件，再填导出时的分享口令。给同事新设备请用「认领码」。',
+              '选择他机导出的运维凭证文件，再填导出时的分享口令。给同事新设备请用「认领码」。'
+              '超然信会话请点开 AutumnOps 运维卡导入。',
               style: hintStyle,
             ),
             const SizedBox(height: 10),
             OpsFusedActionBar(
               icon: Icons.folder_open,
-              label: _pickedBackupName == null
-                  ? '尚未选择备份文件'
-                  : '已选：$_pickedBackupName',
-              actionLabel: _pickedBackupName == null ? '选文件' : '重选',
+              label: _pickedCredentialName == null
+                  ? '尚未选择运维凭证'
+                  : '已选：$_pickedCredentialName',
+              actionLabel: _pickedCredentialName == null ? '选文件' : '重选',
               enabled: !_busy,
-              onAction: _pickBackupFile,
+              onAction: _pickCredentialFile,
             ),
-            if (_pickedBackup?.baseUrl != null && _pickedBackup!.baseUrl!.isNotEmpty) ...[
+            if (_pickedCredential?.baseUrl != null &&
+                _pickedCredential!.baseUrl!.isNotEmpty) ...[
               const SizedBox(height: 6),
               Text(
-                '文件内站点：${_pickedBackup!.baseUrl}',
-                style: TextStyle(fontSize: 12, fontFamily: 'monospace', color: scheme.onSurfaceVariant),
+                '文件内站点：${_pickedCredential!.baseUrl}',
+                style: TextStyle(
+                    fontSize: 12,
+                    fontFamily: 'monospace',
+                    color: scheme.onSurfaceVariant),
               ),
             ],
             const SizedBox(height: 10),
@@ -719,7 +724,7 @@ class _OpsAddSitePageState extends State<OpsAddSitePage> {
               actionLabel: '导入',
               obscure: true,
               enabled: !_busy,
-              onAction: _busy || !canImport ? null : _importBackupAndOpen,
+              onAction: _busy || !canImport ? null : _importCredentialAndOpen,
             ),
           ],
         );
@@ -817,7 +822,7 @@ class _OpsAddSitePageState extends State<OpsAddSitePage> {
                           );
                         },
                         icon: const Icon(Icons.healing, size: 18),
-                        label: const Text('无备份时的恢复步骤'),
+                        label: const Text('无凭证时的恢复步骤'),
                       ),
                     ),
                   ],
@@ -839,7 +844,7 @@ class _OpsAddSitePageState extends State<OpsAddSitePage> {
             const SizedBox(height: 12),
             OpsAddSection(
               title: _outcome == null ? '2. 接入方式' : '3. 接入方式',
-              subtitle: '按你的情况选一种：首次 / 认领新设备 / 换机恢复。',
+              subtitle: '按你的情况选一种：首次 / 认领新设备 / 导入凭证。',
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -860,8 +865,8 @@ class _OpsAddSitePageState extends State<OpsAddSitePage> {
                         icon: Icon(Icons.qr_code, size: 16),
                       ),
                       ButtonSegment(
-                        value: _AddMode.importBackup,
-                        label: Text('换机'),
+                        value: _AddMode.importCredential,
+                        label: Text('凭证'),
                         icon: Icon(Icons.folder_open, size: 16),
                       ),
                     ],

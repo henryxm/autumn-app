@@ -1,10 +1,12 @@
 library autumn_ops_ui;
 
-export 'package:autumn_ops/autumn_ops.dart' show AutumnOpsDiscover;
+export 'package:autumn_ops/autumn_ops.dart'
+    show AutumnOpsDiscover, AutumnOpsPayload;
 
 export 'src/ops_pages.dart';
 export 'src/ops_manage_page.dart';
 export 'src/ops_gate.dart';
+export 'src/ops_payload_io.dart';
 export 'src/ops_ip_list_panel.dart';
 export 'src/ops_runtime_panel.dart';
 export 'src/ops_fused_field.dart';

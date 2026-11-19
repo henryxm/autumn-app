@@ -128,7 +128,7 @@ class OpsSiteStore {
     return credentialStoreFor(site).save(bundle);
   }
 
-  /// Prefer enrolled match; used by Gate when opening `.ops` / discover.
+  /// Prefer enrolled match; used by Gate when opening AutumnOps / discover.
   Future<OpsSiteEntry?> findByCertId(String certId) async {
     final id = certId.trim();
     if (id.isEmpty) {

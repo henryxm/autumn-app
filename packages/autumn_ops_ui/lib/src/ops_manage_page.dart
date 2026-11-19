@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:share_plus/share_plus.dart';
 
-import 'ops_backup_io.dart';
+import 'ops_payload_io.dart';
 import 'ops_fused_field.dart';
 import 'ops_ip_list_panel.dart';
 import 'ops_pages.dart';
@@ -1212,7 +1212,39 @@ class _OpsManageSitePageState extends State<OpsManageSitePage>
     );
   }
 
-  Future<void> _exportBackup(OpsSiteEntry site) async {
+  Future<void> _shareToChat(OpsSiteEntry site) async {
+    final passCheck = OpsValidators.sharePassphrase(_passCtrl.text);
+    if (!passCheck.ok) {
+      _toast(passCheck.error!);
+      return;
+    }
+    if (AutumnOpsShareHooks.toChat == null) {
+      _toast('当前 App 未接入「分享到聊天」');
+      return;
+    }
+    await _run(() async {
+      final c = await _client();
+      if (!mounted) {
+        return;
+      }
+      final ok = await shareAutumnOpsToChat(
+        context: context,
+        client: c!,
+        passphrase: _passCtrl.text.trim(),
+        site: site,
+      );
+      if (!mounted) {
+        return;
+      }
+      if (ok) {
+        _toast('已打开分享到聊天');
+      } else {
+        _toast('未完成分享');
+      }
+    });
+  }
+
+  Future<void> _exportCredentialFile(OpsSiteEntry site) async {
     final passCheck = OpsValidators.sharePassphrase(_passCtrl.text);
     if (!passCheck.ok) {
       _toast(passCheck.error!);
@@ -1220,31 +1252,31 @@ class _OpsManageSitePageState extends State<OpsManageSitePage>
     }
     await _run(() async {
       final c = await _client();
-      await exportOpsBackupFile(
+      await exportAutumnOpsCredentialFile(
         client: c!,
         passphrase: _passCtrl.text.trim(),
         site: site,
       );
-      _toast('已导出 .ops 文件，请用系统分享发给新手机');
+      _toast('已导出运维凭证文件');
     });
   }
 
-  Future<void> _importBackup(OpsSiteEntry site) async {
+  Future<void> _importCredentialFile(OpsSiteEntry site) async {
     final passCheck = OpsValidators.sharePassphrase(_passCtrl.text);
     if (!passCheck.ok) {
       _toast(passCheck.error!);
       return;
     }
-    final picked = await pickOpsBackupFile();
+    final picked = await pickAutumnOpsCredentialFile();
     if (picked.cancelled) return;
     if (!picked.ok) {
-      _toast(picked.error ?? '选择备份失败');
+      _toast(picked.error ?? '选择凭证失败');
       return;
     }
     await _run(() async {
       final pass = _passCtrl.text.trim();
       final c = await _client();
-      await c!.importWrapped(picked.file!.wrapped, pass);
+      await c!.importWrapped(picked.payload!.wrapped, pass);
       site.enrolled = true;
       final b = await c.currentBundle();
       if (b != null) {
@@ -1383,7 +1415,7 @@ class _OpsManageSitePageState extends State<OpsManageSitePage>
                               '2. 填写站点：${site.baseUrl}\n'
                               '3. 点「探测」→ 选「认领码」\n'
                               '4. 粘贴认领码：${_lastIssue!.claimSecret}\n'
-                              '（这是文字口令，不是 .ops 备份文件）',
+                              '（这是文字认领码，不是运维密钥消息）',
                             );
                           },
                           icon: const Icon(Icons.ios_share, size: 18),
@@ -1399,30 +1431,39 @@ class _OpsManageSitePageState extends State<OpsManageSitePage>
         ),
         const SizedBox(height: 12),
         _sectionCard(
-          title: '② 导出 .ops 备份（换机 / 同证迁移）',
-          body: '把本机证书打成 .ops 文件带走（同一 certId）。'
-              '流程：设分享口令 → 导出并分享文件 → 新手机「+」探测同一地址 →「换机备份」→ 选该文件并填同一口令。'
-              '口令只用于加密文件，不会写入文件、也不会上传。给同事单独一台机请用上方①，不要用导出。',
+          title: '② 分享运维密钥（同证）',
+          body: '用分享口令包裹本机运维密钥后发到超然信会话（消息类型 AutumnOps，同一 certId）。'
+              '对端点开运维卡并输入同一口令即可导入。口令不当场写入消息。'
+              '给同事单独一台机请用上方① 认领码。',
           children: [
             _fusedFieldAction(
               controller: _passCtrl,
-              hintText: '分享口令（导出加密，导入时再输入）',
-              actionLabel: '导出 .ops',
+              hintText: '分享口令（加密密钥，导入时再输入）',
+              actionLabel: '分享到聊天',
               obscure: true,
-              onAction: _busy ? null : () => _exportBackup(site),
+              onAction: _busy ? null : () => _shareToChat(site),
             ),
             const SizedBox(height: 8),
             Text(
-              '本机重装后也可在此用同一口令「选文件覆盖导入」。新手机务必走首页「+」。',
+              '也可导出本机凭证文件（非聊天入口），或选文件覆盖导入到本站点。',
               style: TextStyle(fontSize: 12, height: 1.4, color: scheme.onSurfaceVariant),
             ),
             const SizedBox(height: 10),
             SizedBox(
               width: double.infinity,
               child: OutlinedButton.icon(
-                onPressed: _busy ? null : () => _importBackup(site),
+                onPressed: _busy ? null : () => _exportCredentialFile(site),
+                icon: const Icon(Icons.ios_share, size: 18),
+                label: const Text('导出运维凭证文件'),
+              ),
+            ),
+            const SizedBox(height: 8),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: _busy ? null : () => _importCredentialFile(site),
                 icon: const Icon(Icons.folder_open, size: 18),
-                label: const Text('选 .ops 文件覆盖到本站点'),
+                label: const Text('选凭证文件覆盖到本站点'),
               ),
             ),
             const SizedBox(height: 4),
@@ -1434,7 +1475,7 @@ class _OpsManageSitePageState extends State<OpsManageSitePage>
                     : () async {
                         if (!await _confirm(
                           '清除本机证书',
-                          '仅删除本机私钥包，不会吊销服务端登记。若这是唯一设备且无备份，需防火墙重置才能再入驻。确定？',
+                          '仅删除本机私钥包，不会吊销服务端登记。若这是唯一设备且无其它凭证，需防火墙重置才能再入驻。确定？',
                         )) {
                           return;
                         }

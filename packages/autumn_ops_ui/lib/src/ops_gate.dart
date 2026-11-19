@@ -1,6 +1,3 @@
-import 'dart:io';
-import 'dart:typed_data';
-
 import 'package:autumn_ops/autumn_ops.dart';
 import 'package:flutter/material.dart';
 import 'package:uuid/uuid.dart';
@@ -10,32 +7,19 @@ import 'ops_manage_page.dart';
 import 'ops_pages.dart';
 import 'ops_site_io.dart';
 
-/// Host-facing root: open `.ops` bytes/path or a discover URL.
-///
-/// Product apps push this page; all import / probe UI stays in packages.
+/// Host-facing：IM `AutumnOps` content，或发现 URL。
 class AutumnOpsGatePage extends StatefulWidget {
   const AutumnOpsGatePage._({
     super.key,
-    this.bytes,
-    this.path,
-    this.filename,
+    this.content,
     this.rawUrl,
   });
 
-  factory AutumnOpsGatePage.opsBytes({
+  factory AutumnOpsGatePage.fromContent({
     Key? key,
-    required Uint8List bytes,
-    String? filename,
+    required Map<String, dynamic> content,
   }) {
-    return AutumnOpsGatePage._(key: key, bytes: bytes, filename: filename);
-  }
-
-  factory AutumnOpsGatePage.opsPath({
-    Key? key,
-    required String path,
-    String? filename,
-  }) {
-    return AutumnOpsGatePage._(key: key, path: path, filename: filename);
+    return AutumnOpsGatePage._(key: key, content: content);
   }
 
   factory AutumnOpsGatePage.discover({
@@ -45,9 +29,7 @@ class AutumnOpsGatePage extends StatefulWidget {
     return AutumnOpsGatePage._(key: key, rawUrl: rawUrl);
   }
 
-  final Uint8List? bytes;
-  final String? path;
-  final String? filename;
+  final Map<String, dynamic>? content;
   final String? rawUrl;
 
   @override
@@ -57,7 +39,7 @@ class AutumnOpsGatePage extends StatefulWidget {
 class _AutumnOpsGatePageState extends State<AutumnOpsGatePage> {
   String _status = '准备中…';
   bool _busy = false;
-  OpsBackupFile? _backup;
+  AutumnOpsPayload? _payload;
   final _passCtrl = TextEditingController();
   String? _discoverBase;
   OpsProbeOutcome? _probeOutcome;
@@ -79,32 +61,28 @@ class _AutumnOpsGatePageState extends State<AutumnOpsGatePage> {
       await _startDiscover(widget.rawUrl!);
       return;
     }
-    await _startOpsFile();
+    await _startPayload();
   }
 
-  Future<void> _startOpsFile() async {
+  Future<void> _startPayload() async {
     setState(() {
       _busy = true;
-      _status = '正在读取备份…';
+      _status = '正在读取运维凭证…';
     });
     try {
-      final String raw;
-      if (widget.bytes != null) {
-        raw = String.fromCharCodes(widget.bytes!);
-      } else if (widget.path != null) {
-        raw = await File(widget.path!).readAsString();
-      } else {
-        setState(() => _status = '未提供备份数据');
+      final content = widget.content;
+      if (content == null) {
+        setState(() => _status = '未提供运维凭证');
         return;
       }
-      final parsed = OpsBackupFile.parse(raw);
-      if (!parsed.ok || parsed.file == null) {
-        setState(() => _status = parsed.error ?? '无法解析 .ops 文件');
+      final parsed = AutumnOpsPayload.fromMessageMap(content);
+      if (!parsed.ok || parsed.payload == null) {
+        setState(() => _status = parsed.error ?? '无法解析运维凭证');
         return;
       }
-      _backup = parsed.file;
+      _payload = parsed.payload;
       final store = await openOpsSiteStore();
-      final certId = (_backup!.certId ?? '').trim();
+      final certId = (_payload!.certId ?? '').trim();
       if (certId.isNotEmpty) {
         final hit = await store.findByCertId(certId);
         if (hit != null && await store.hasLocalCredential(hit)) {
@@ -113,7 +91,7 @@ class _AutumnOpsGatePageState extends State<AutumnOpsGatePage> {
           return;
         }
       }
-      final baseHint = (_backup!.baseUrl ?? '').trim();
+      final baseHint = (_payload!.baseUrl ?? '').trim();
       if (baseHint.isNotEmpty) {
         final byBase = await store.findByBaseUrl(baseHint);
         if (byBase != null &&
@@ -137,16 +115,16 @@ class _AutumnOpsGatePageState extends State<AutumnOpsGatePage> {
   }
 
   Future<void> _importWithPassphrase() async {
-    final backup = _backup;
-    if (backup == null || _busy) return;
+    final payload = _payload;
+    if (payload == null || _busy) return;
     final passCheck = OpsValidators.sharePassphrase(_passCtrl.text);
     if (!passCheck.ok) {
       setState(() => _status = passCheck.error!);
       return;
     }
-    var base = (backup.baseUrl ?? '').trim();
+    var base = (payload.baseUrl ?? '').trim();
     if (base.isEmpty) {
-      setState(() => _status = '备份未含站点地址，请改用「添加站点」换机流程');
+      setState(() => _status = '凭证未含站点地址，请改用「添加站点」流程');
       return;
     }
     base = OpsSiteEntry.normalizeBaseUrl(base);
@@ -158,7 +136,6 @@ class _AutumnOpsGatePageState extends State<AutumnOpsGatePage> {
     OpsSiteEntry? site;
     try {
       store = await openOpsSiteStore();
-      // Decrypt first to resolve certId for merge.
       final tmpId = const Uuid().v4();
       site = OpsSiteEntry(
         id: tmpId,
@@ -171,7 +148,7 @@ class _AutumnOpsGatePageState extends State<AutumnOpsGatePage> {
       }
       final cred = store.credentialStoreFor(site);
       final client = AutumnOpsClient(baseUrl: base, store: cred);
-      await client.importWrapped(backup.wrapped, _passCtrl.text.trim());
+      await client.importWrapped(payload.wrapped, _passCtrl.text.trim());
       final bundle = await client.currentBundle();
       if (bundle == null) {
         await cred.clear();
@@ -180,7 +157,6 @@ class _AutumnOpsGatePageState extends State<AutumnOpsGatePage> {
       }
       final byCert = await store.findByCertId(bundle.certId);
       if (byCert != null && byCert.id != site.id) {
-        // Merge onto existing cert row; clear temp if we created one.
         if (site.id == tmpId) {
           await cred.clear();
         }
@@ -188,21 +164,20 @@ class _AutumnOpsGatePageState extends State<AutumnOpsGatePage> {
         final mergeCred = store.credentialStoreFor(site);
         final mergeClient =
             AutumnOpsClient(baseUrl: site.baseUrl, store: mergeCred);
-        await mergeClient.importWrapped(backup.wrapped, _passCtrl.text.trim());
+        await mergeClient.importWrapped(payload.wrapped, _passCtrl.text.trim());
         await mergeClient.ensureSession();
         site.siteId =
             bundle.siteId.isNotEmpty ? bundle.siteId : site.siteId;
         site.certId = bundle.certId;
         site.serverFingerprint =
-            bundle.serverFingerprint ?? backup.serverFingerprint;
+            bundle.serverFingerprint ?? payload.serverFingerprint;
         site.enrolled = true;
         await store.upsertSite(site);
         if (!mounted) return;
         _goManage(site.id, replace: true);
         return;
       }
-      final fileFp = backup.serverFingerprint ?? bundle.serverFingerprint;
-      // Soft probe for fingerprint when possible.
+      final fileFp = payload.serverFingerprint ?? bundle.serverFingerprint;
       try {
         final plan = OpsEndpoint.resolve(base);
         if (!plan.isEmpty) {
@@ -219,7 +194,7 @@ class _AutumnOpsGatePageState extends State<AutumnOpsGatePage> {
             await cred.clear();
             setState(() {
               _status =
-                  '备份与站点指纹不一致，已取消。请确认是否为同一 Autumn 实例。';
+                  '凭证与站点指纹不一致，已取消。请确认是否为同一 Autumn 实例。';
             });
             return;
           }
@@ -357,10 +332,10 @@ class _AutumnOpsGatePageState extends State<AutumnOpsGatePage> {
 
   @override
   Widget build(BuildContext context) {
-    final isOps = widget.rawUrl == null;
+    final isPayload = widget.rawUrl == null;
     return Scaffold(
       appBar: AppBar(
-        title: Text(isOps ? '打开运维备份' : 'Autumn 运维发现'),
+        title: Text(isPayload ? '导入运维凭证' : 'Autumn 运维发现'),
         actions: [
           TextButton(
             onPressed: _busy ? null : _openSites,
@@ -376,13 +351,13 @@ class _AutumnOpsGatePageState extends State<AutumnOpsGatePage> {
             const SizedBox(height: 24),
             const Center(child: CircularProgressIndicator()),
           ],
-          if (isOps && _backup != null && !_busy) ...[
+          if (isPayload && _payload != null && !_busy) ...[
             const SizedBox(height: 16),
-            if ((_backup!.baseUrl ?? '').isNotEmpty)
-              Text('站点：${_backup!.baseUrl}',
+            if ((_payload!.baseUrl ?? '').isNotEmpty)
+              Text('站点：${_payload!.baseUrl}',
                   style: Theme.of(context).textTheme.bodyMedium),
-            if ((_backup!.certId ?? '').isNotEmpty)
-              Text('证书：${_backup!.certId}',
+            if ((_payload!.certId ?? '').isNotEmpty)
+              Text('证书：${_payload!.certId}',
                   style: Theme.of(context).textTheme.bodySmall),
             const SizedBox(height: 16),
             OpsFusedFieldAction(
@@ -394,7 +369,7 @@ class _AutumnOpsGatePageState extends State<AutumnOpsGatePage> {
               onAction: _importWithPassphrase,
             ),
           ],
-          if (!isOps && !_busy && _probeOutcome != null) ...[
+          if (!isPayload && !_busy && _probeOutcome != null) ...[
             const SizedBox(height: 20),
             FilledButton(
               onPressed: _openAddSite,

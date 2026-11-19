@@ -97,7 +97,7 @@ flutter run -d macos
 
 1. **首次**：探测 → 粘贴服务器日志 `OpsEnroll secret=` → 入驻。  
 2. **第二台起**：已登录设备在「证书」页签发认领码 → 新设备添加站点 →「认领码入驻」。  
-3. **同证备份/换机**：已登录设备在「证书」页设分享口令 → 导出 `.ops` 文件并分享 → 新手机「+」探测同一地址 →「换机备份」→ **选择该文件**并填同一口令（共享同一 certId）。勿与「认领码」（文字）混淆。  
+3. **同证共享**：已登录设备在「证书」页设分享口令 → **分享到聊天**（IM `AutumnOps`）或导出运维凭证文件 → 对端点开运维卡 / 选凭证并填同一口令（共享同一 certId）。勿与「认领码」（文字）混淆。  
 4. **唯一设备丢失**：wall 重置运维证书（需 clearToken）或 DB 清空 `SECURITY_OPS_CERT_CONFIG` 后重启 → 新 OpsEnroll 再入驻。
 
 ## 依赖关系
@@ -106,7 +106,7 @@ flutter run -d macos
 shell → autumn_ops_ui → autumn_ops
 ```
 
-本地证书落在本 App 沙盒 `Application Support/autumn_ops/`；与产品 App 不共享。换机：管理页导出 `.ops` → 新设备「+」选文件导入。
+本地证书落在本 App 沙盒 `Application Support/autumn_ops/`；与产品 App 不共享。同证共享：管理页「分享到聊天」或导出运维凭证。
 
 ## 代码结构规范（硬规则）
 
@@ -114,12 +114,12 @@ shell → autumn_ops_ui → autumn_ops
 
 | 层 | 包/目录 | 允许 | 禁止 |
 |----|---------|------|------|
-| 协议 | `packages/autumn_ops` | HTTP/RSA/证书/探测/备份文件格式/`OpsStore` | Flutter 页面、路由、Material 业务 Widget |
+| 协议 | `packages/autumn_ops` | HTTP/RSA/证书/探测/`AutumnOpsPayload`/`OpsStore` | Flutter 页面、路由、Material 业务 Widget |
 | 界面 | `packages/autumn_ops_ui` | 全部运维 Page/Panel/表单/导入导出 UI；对外稳定入口 | 依赖具体宿主（禁止 import shell / 产品 App） |
 | 独立壳 | `shell/` | `main`、`MaterialApp`/主题/标题、平台工程、鸿蒙插件 override | 运维业务页、协议调用、站点/证书流程、复制 UI |
 | 产品宿主 | 如 `crchat_flutter` | pubspec **git** 依赖；路由/入口 **push/挂载** 包导出 Widget；产品级门禁 | 在产品仓实现运维列表/管理/证书页；fork 改包内逻辑 |
 
-**功能一致**：shell 与产品调用同一 git 版本的 `autumn_ops_ui` / `autumn_ops`（探测、入驻、认领码、`.ops` 换机、证书、管理 IP/gate 等）。允许差异仅限壳层（App 名、Bundle ID、主题、GoRouter、入口是否隐藏、登录门禁）。
+**功能一致**：shell 与产品调用同一 git 版本的 `autumn_ops_ui` / `autumn_ops`（探测、入驻、认领码、AutumnOps 共享、证书、管理 IP/gate 等）。允许差异仅限壳层（App 名、Bundle ID、主题、GoRouter、入口是否隐藏、登录门禁）。
 
 **公开入口**（宿主只挂这些，子页由包内导航）：
 

@@ -53,7 +53,7 @@ class OpsProbeOutcome {
         kind: OpsProbeKind.needReset,
         message: '站点已入驻过，本机没有可用证书',
         nextStep:
-            '若有 .ops 备份：选「换机备份」并选择文件。若有其它在线设备：用「认领码」（文字）。若唯一设备丢失且无备份：运维墙重置后再用「首次口令」',
+            '若有运维凭证：选「凭证」并选择文件或打开 AutumnOps 消息。若有其它在线设备：用「认领码」（文字）。若唯一设备丢失且无凭证：运维墙重置后再用「首次口令」',
         result: r,
       );
     }
@@ -61,7 +61,7 @@ class OpsProbeOutcome {
       return OpsProbeOutcome(
         kind: OpsProbeKind.needReset,
         message: '站点已就绪，但本机无证书',
-        nextStep: '有 .ops 则选「换机备份」选文件；否则用「认领码」；都没有则需运维墙重置后再入驻',
+        nextStep: '有凭证则选「凭证」选文件或打开 AutumnOps 消息；否则用「认领码」；都没有则需运维墙重置后再入驻',
         result: r,
       );
     }

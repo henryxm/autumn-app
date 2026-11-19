@@ -37,11 +37,11 @@
 公开入口（宿主只挂这些）：
 
 - `AutumnOpsHome` — 多站点首页（独立 shell）
-- `AutumnOpsGatePage` — 产品深链：`.ops` 打开 / `{base}/ops/discover` 自动探测（超然信）
+- `AutumnOpsGatePage` — 产品深链：IM `AutumnOps` content / `{base}/ops/discover` 自动探测（超然信）
 - `AutumnOpsDiscover` — 解析/生成发现 URL（逻辑在 `autumn_ops`）
 - `OpsKeyboardDismiss` — 可选，供宿主 `MaterialApp.builder`
 
-产品默认**无常驻入口**；经消息 `.ops`、收藏、扫码/链接发现进入。
+产品默认**无常驻入口**；经 `AutumnOps` 消息、收藏、扫码/链接发现进入。
 
 ---
 
@@ -59,7 +59,7 @@
 |------|------|-----|
 | 修复、文案、内部重构，公开 API/交互契约不变 | PATCH | `0.1.0` → `0.1.1` |
 | 新增能力、新入口导出、可兼容的 UI 增强 | MINOR | `0.1.1` → `0.2.0` |
-| 破坏性：删除/改名公开导出、备份格式不兼容、强制宿主改代码 | MAJOR | `0.2.0` → `1.0.0` |
+| 破坏性：删除/改名公开导出、AutumnOps 载荷不兼容、强制宿主改代码 | MAJOR | `0.2.0` → `1.0.0` |
 
 包内 `pubspec.yaml` 的 `version:` 建议与即将发布的 tag 数字部分对齐（如 tag `ops-v0.2.0` → `version: 0.2.0`），便于对照。
 
@@ -100,7 +100,7 @@ cd shell && flutter pub get && flutter run -d <device>
 
 - [ ] 探测 / 首次口令入驻
 - [ ] 认领码入驻
-- [ ] `.ops` 导出与换机导入
+- [ ] AutumnOps 分享到聊天与凭证导入
 - [ ] 证书签发 / 撤销
 - [ ] 管理 IP / gate（若涉及）
 - [ ] shell 与预期产品入口打开的是同一套 UI（同源 packages）
@@ -144,7 +144,7 @@ git ls-remote --tags origin "ops-v${NEW}"
 在发版说明（MR/聊天/Changelog）中写清：
 
 1. 新 tag 名（如 `ops-v0.2.0`）
-2. 是否破坏公开入口 / `.ops` 格式
+2. 是否破坏公开入口 / `AutumnOps` / `autumn-ops` 载荷
 3. 产品侧是否需要改挂载代码（通常不需要）
 4. 建议验收项
 
@@ -179,7 +179,7 @@ git ls-remote --tags origin "ops-v${NEW}"
 
 - 所有需要 `flutter pub get` 的开发者 / CI Runner，须对 `autumn-app` 私有仓有 **读** 权限（HTTPS 凭据或 SSH）。
 - CI 应钉 tag 或 SHA，禁止 `ref: main`。
-- 证书数据按 **宿主 App 沙盒** 隔离；独立 shell 与超然信不自动共享；换机用 `.ops`。
+- 证书数据按 **宿主 App 沙盒** 隔离；独立 shell 与超然信不自动共享；同证共享用 IM `AutumnOps` 或凭证文件。
 
 ---
 
@@ -191,7 +191,7 @@ git ls-remote --tags origin "ops-v${NEW}"
 | hosted 与 git 的 `share_plus` 冲突 | UI 包声明 hosted，宿主用 CPF | 宿主 `dependency_overrides` 强制 CPF |
 | 产品有功能、shell 没有（或相反） | 业务写进了某一宿主 | 迁回 packages，宿主只留入口 |
 | 改了 packages 产品看不到 | 未打 tag 或产品未改 `ref` | 走 §4 → §5；或临时 overrides |
-| 两台设备证书不一致 | 不同 Bundle 沙盒 | 预期行为；用 `.ops` 互通 |
+| 两台设备证书不一致 | 不同 Bundle 沙盒 | 预期行为；用 AutumnOps / 凭证互通 |
 
 ---
 

@@ -1,5 +1,7 @@
 library autumn_ops_ui;
 
+export 'package:autumn_ops/autumn_ops.dart' show AutumnOpsDiscover;
+
 export 'src/ops_pages.dart';
 export 'src/ops_manage_page.dart';
 export 'src/ops_gate.dart';

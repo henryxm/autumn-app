@@ -4,6 +4,7 @@ class OpsProbeResult {
     required this.opsCert,
     required this.adminIpEnable,
     required this.enrollAvailable,
+    this.discoverEnabled = true,
     this.siteId,
     this.serverFingerprint,
     this.protocolVersion,
@@ -14,6 +15,8 @@ class OpsProbeResult {
   final String opsCert;
   final bool adminIpEnable;
   final bool enrollAvailable;
+  /// 公开发现页 `/ops/discover`；旧服务端缺字段时视为开启。
+  final bool discoverEnabled;
   final String? siteId;
   final String? serverFingerprint;
   final int? protocolVersion;
@@ -24,6 +27,9 @@ class OpsProbeResult {
       opsCert: '${json['opsCert'] ?? 'none'}',
       adminIpEnable: json['adminIpEnable'] == true,
       enrollAvailable: json['enrollAvailable'] == true,
+      discoverEnabled: json.containsKey('discoverEnabled')
+          ? json['discoverEnabled'] == true
+          : true,
       siteId: json['siteId']?.toString(),
       serverFingerprint: json['serverFingerprint']?.toString(),
       protocolVersion: json['protocolVersion'] is int

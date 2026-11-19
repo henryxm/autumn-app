@@ -35,6 +35,8 @@ class _OpsManageSitePageState extends State<OpsManageSitePage>
   int _busyDepth = 0;
   bool _panelBusy = false;
   bool? _adminIpEnable;
+  /// 公开发现页 `/ops/discover`；旧服务端缺字段时按开启处理。
+  bool? _discoverEnabled;
   /// `null` 未同步；服务端 SECURITY_OPS_CONFIG.clearToken 是否已配置（不下发明文）。
   bool? _clearTokenConfigured;
   String _currentIp = '';
@@ -153,6 +155,9 @@ class _OpsManageSitePageState extends State<OpsManageSitePage>
       if (!mounted) return;
       setState(() {
         _adminIpEnable = gate['adminIpEnable'] == true;
+        _discoverEnabled = gate.containsKey('discoverEnabled')
+            ? gate['discoverEnabled'] == true
+            : true;
         _clearTokenConfigured = gate['clearTokenConfigured'] == true;
         _currentIp = currentIp;
         _currentIpInAdmin = inAdmin;
@@ -479,6 +484,29 @@ class _OpsManageSitePageState extends State<OpsManageSitePage>
     });
   }
 
+  Future<void> _setDiscoverEnabled(bool enable) async {
+        if (!enable) {
+      if (!await _confirm(
+        '关闭站点发现页',
+        '关闭后，浏览器访问本站发现页将如同不存在（404），避免被探测；'
+            '不影响 App 内探测与管理。可随时在此重新打开。确定关闭？',
+      )) {
+        return;
+      }
+    }
+    await _run(() async {
+      final c = await _client();
+      final g = await c!.gateSetDiscoverEnabled(enable: enable);
+      if (!mounted) return;
+      setState(() {
+        _discoverEnabled = g.containsKey('discoverEnabled')
+            ? g['discoverEnabled'] == true
+            : enable;
+      });
+      _toast(enable ? '已打开站点发现页' : '已关闭站点发现页');
+    });
+  }
+
   Future<void> _disableAdminIpGate() async {
     if (_clearTokenConfigured == false) {
       _toast('请先在下方配置清除确认令牌');
@@ -631,6 +659,7 @@ class _OpsManageSitePageState extends State<OpsManageSitePage>
 
   Widget _buildOverview(OpsSiteEntry site) {
     final gateOn = _adminIpEnable == true;
+    final discoverOn = _discoverEnabled != false;
     final scheme = Theme.of(context).colorScheme;
     return ListView(
       padding: const EdgeInsets.all(16),
@@ -647,6 +676,38 @@ class _OpsManageSitePageState extends State<OpsManageSitePage>
             ),
             _kv('服务端指纹', site.serverFingerprint ?? '-'),
             _kv('有效设备数', '$_activeCount'),
+          ],
+        ),
+        const SizedBox(height: 12),
+        _sectionCard(
+          title: '站点发现页',
+          body: discoverOn
+              ? '已打开：浏览器可访问发现页，扫码或点开链接即可引导安装超然信并添加本站。证书绑定成功后会自动关闭。'
+              : '已关闭：浏览器访问发现页将如同不存在（404），避免被探测；不影响本 App 内探测与运维。',
+          children: [
+            Row(
+              children: [
+                Chip(
+                  label: Text(discoverOn ? '发现页已开' : '发现页已关'),
+                  backgroundColor: discoverOn
+                      ? scheme.secondaryContainer.withValues(alpha: 0.7)
+                      : scheme.errorContainer.withValues(alpha: 0.45),
+                ),
+                const Spacer(),
+                if (discoverOn)
+                  OutlinedButton(
+                    onPressed:
+                        _busy ? null : () => _setDiscoverEnabled(false),
+                    child: const Text('关闭发现页'),
+                  )
+                else
+                  FilledButton(
+                    onPressed:
+                        _busy ? null : () => _setDiscoverEnabled(true),
+                    child: const Text('打开发现页'),
+                  ),
+              ],
+            ),
           ],
         ),
         const SizedBox(height: 12),
@@ -699,8 +760,9 @@ class _OpsManageSitePageState extends State<OpsManageSitePage>
         const SizedBox(height: 12),
         _sectionCard(
           title: '分享管理入口',
-          body:
-              '生成发现链接（不含口令）。他人用超然信扫码或点开后可自动探测本站运维能力。',
+          body: discoverOn
+              ? '生成发现链接。他人用超然信扫码或点开后可自动探测本站运维能力。'
+              : '发现页当前已关闭。仍可复制链接供超然信打开；浏览器打开将得到 404。',
           children: [
             SelectableText(
               AutumnOpsDiscover.shareUrlForBase(site.baseUrl),

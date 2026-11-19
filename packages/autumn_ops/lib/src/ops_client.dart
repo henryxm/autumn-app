@@ -266,6 +266,14 @@ class AutumnOpsClient {
         if (clearToken != null && clearToken.isNotEmpty) 'clearToken': clearToken,
       });
 
+  /// 开关公开发现页 `/ops/discover`（不要求 clearToken）。
+  Future<Map<String, dynamic>> gateSetDiscoverEnabled({
+    required bool enable,
+  }) =>
+      _authedPost('/ops/api/v1/gate/setDiscoverEnabled', {
+        'enable': enable,
+      });
+
   Future<Map<String, dynamic>> certList() =>
       _authedPost('/ops/api/v1/cert/list', {});
 

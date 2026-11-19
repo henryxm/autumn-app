@@ -76,14 +76,9 @@ fi
 
 git add packages/autumn_ops/pubspec.yaml packages/autumn_ops_ui/pubspec.yaml \
   ios/AutumnOpsCore/AutumnOpsCore.podspec ios/AutumnOpsUI/AutumnOpsUI.podspec
-git commit -m "$(cat <<EOF
-chore(ops): 发版 $TAG。
+git commit -m "chore(ops): 发版 ${TAG}。" -m "${MSG}"
 
-$MSG
-EOF
-)"
-
-git tag -a "$TAG" -m "ops packages v${NEW}: $MSG"
+git tag -a "$TAG" -m "ops packages v${NEW}: ${MSG}"
 echo "==> 已创建本地 tag $TAG @ $(git rev-parse --short HEAD)"
 echo "推送："
 echo "  git push origin main"

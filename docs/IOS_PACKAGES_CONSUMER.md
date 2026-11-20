@@ -85,7 +85,8 @@ CocoaPods **不支持** Flutter 式 `git + path` 子目录一条声明。发版�
 
 ## 5. 验收清单
 
-- [ ] probe → OpsEnroll 入驻 → 管理六 Tab 可读可改
+- [ ] probe → OpsEnroll 入驻 → 管理 Tab 可读可改
+- [ ] **管理壳（对齐 Flutter）**：宿主藏系统栏时自绘顶栏（返回+站点 title+「站点」+刷新）；Tab 在顶栏下、状态条紧凑；概览为分区卡（Chip+开/关按钮，无 UISwitch）；列表「Autumn 运维」同有顶栏
 - [ ] 认领码：A issue → B claim → 两证可独立吊销
 - [ ] 分享口令 → 分享到聊天 → 对端气泡进 Gate → importWrapped
 - [ ] **Flutter 签发分享证 → 本 iOS 宿主 Gate 导入 + ensureSession 成功**（不得 `SecKeyCreateWithData failed`）

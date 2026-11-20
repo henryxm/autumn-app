@@ -2,6 +2,7 @@
 #import "AutumnOpsManageViewController.h"
 #import "AutumnOpsAddSiteViewController.h"
 #import "AutumnOpsSitesViewController.h"
+#import "AutumnOpsPageChromeView.h"
 #import "AutumnOpsUIConfig.h"
 #import <AutumnOpsCore/AutumnOpsCore.h>
 #import <Masonry/Masonry.h>
@@ -19,6 +20,8 @@
 @property (nonatomic, copy, nullable) NSString *discoverBase;
 @property (nonatomic, strong, nullable) AutumnOpsProbeOutcome *probeOutcome;
 @property (nonatomic, strong) AutumnOpsSiteStore *siteStore;
+@property (nonatomic, strong, nullable) AutumnOpsPageChromeView *pageChrome;
+@property (nonatomic, strong) UIStackView *bodyStack;
 @end
 
 @implementation AutumnOpsGateViewController
@@ -39,9 +42,34 @@
   [super viewDidLoad];
   self.view.backgroundColor = UIColor.systemBackgroundColor;
   BOOL isPayload = self.rawURL.length == 0;
-  self.title = isPayload ? @"导入运维凭证" : @"Autumn 运维发现";
+  NSString *title = isPayload ? @"导入运维凭证" : @"Autumn 运维发现";
+  self.title = title;
   self.siteStore = [[AutumnOpsSiteStore alloc] initWithRootDirectory:[AutumnOpsSiteStore defaultRootDirectory]];
   self.navigationItem.rightBarButtonItem = [[UIBarButtonItem alloc] initWithTitle:@"站点列表" style:UIBarButtonItemStylePlain target:self action:@selector(_openSites)];
+
+  BOOL embed = [AutumnOpsPageChromeView shouldEmbedInViewController:self];
+  UIView *top = nil;
+  if (embed) {
+    self.navigationItem.rightBarButtonItem = nil;
+    self.navigationItem.title = nil;
+    _pageChrome = [AutumnOpsPageChromeView new];
+    _pageChrome.titleText = title;
+    _pageChrome.showsBack = YES;
+    __weak typeof(self) weakSelf = self;
+    _pageChrome.onBack = ^{ [AutumnOpsPageChromeView performBackFromViewController:weakSelf]; };
+    UIButton *sites = [UIButton buttonWithType:UIButtonTypeSystem];
+    [sites setTitle:@"站点列表" forState:UIControlStateNormal];
+    sites.titleLabel.font = [UIFont systemFontOfSize:16];
+    [sites addTarget:self action:@selector(_openSites) forControlEvents:UIControlEventTouchUpInside];
+    [_pageChrome.rightStack addArrangedSubview:sites];
+    [self.view addSubview:_pageChrome];
+    [_pageChrome mas_makeConstraints:^(MASConstraintMaker *make) {
+      make.left.right.equalTo(self.view);
+      make.top.equalTo(self.view.mas_safeAreaLayoutGuideTop);
+      make.height.mas_equalTo(44);
+    }];
+    top = _pageChrome;
+  }
 
   _statusLabel = [UILabel new];
   _statusLabel.numberOfLines = 0;
@@ -65,13 +93,14 @@
   [_sitesBtn addTarget:self action:@selector(_openSites) forControlEvents:UIControlEventTouchUpInside];
   _spinner = [[UIActivityIndicatorView alloc] initWithActivityIndicatorStyle:UIActivityIndicatorViewStyleMedium];
 
-  UIStackView *stack = [[UIStackView alloc] initWithArrangedSubviews:@[_statusLabel, _passField, _importBtn, _addBtn, _sitesBtn, _spinner]];
-  stack.axis = UILayoutConstraintAxisVertical;
-  stack.spacing = 12;
-  [self.view addSubview:stack];
-  [stack mas_makeConstraints:^(MASConstraintMaker *make) {
+  _bodyStack = [[UIStackView alloc] initWithArrangedSubviews:@[_statusLabel, _passField, _importBtn, _addBtn, _sitesBtn, _spinner]];
+  _bodyStack.axis = UILayoutConstraintAxisVertical;
+  _bodyStack.spacing = 12;
+  [self.view addSubview:_bodyStack];
+  [_bodyStack mas_makeConstraints:^(MASConstraintMaker *make) {
     make.left.right.equalTo(self.view).inset(20);
-    make.top.equalTo(self.view.mas_safeAreaLayoutGuideTop).offset(24);
+    if (top) make.top.equalTo(top.mas_bottom).offset(24);
+    else make.top.equalTo(self.view.mas_safeAreaLayoutGuideTop).offset(24);
   }];
 
   dispatch_async(dispatch_get_main_queue(), ^{ [self _bootstrap]; });

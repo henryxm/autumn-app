@@ -89,6 +89,15 @@ CocoaPods **不支持** Flutter 式 `git + path` 子目录一条声明。发版�
 - [ ] **管理壳（对齐 Flutter）**：藏系统栏时自绘顶栏；右侧仅站点列表图标（微信小程序式圆环+中心方块），无顶栏刷新；概览/证书下拉刷新；根页无死返回；Add/Recovery 有顶栏；概览卡底 `#EFEFF5`、Chip/Filled·Outlined·Tonal/令牌条对齐 M3 seed；无 UISwitch
 - [ ] **气泡打开分流**：`AutumnOpsEntry` — 本机已有同 cert 凭证时直进 Manage（不闪「导入运维凭证」）；无证时 Gate 融合口令条 + 站点/证书行 + 站点列表图标
 - [ ] **站点列表**：圆角浅底行卡、本机已/未入驻+指纹、空态文案、删除确认；顶栏「+」添加；与 Flutter OpsSitesPage 同构
+- [ ] **添加站点（对齐 Flutter OpsAddSitePage）**：三步分区（地址 → 探测结果 → 接入方式）；`OpsAddSection`/`FusedFieldAction`/`FusedActionBar`；探测语义色卡；改 URL 清空结果；`_busy` 禁用；Ready 出 tonal「本机已有证书 · 直接进入管理」（不自动跳）；`needReset` 出恢复 Outlined 并默认「凭证」；`showJoin` 仅 pending/ready/needReset；认领含 needReset；导入页内选文件+分享口令（无 Alert）；成功 `pushReplacement` Manage；顶栏/页底系统主题色
+- [ ] **运行 Tab（对齐 Flutter OpsRuntimePanel）**：`AutumnOpsRuntimePanelView` 八区卡（系统/JVM/磁盘/库/防火墙/吞吐/Redis/路径）；进度条+Chip；采集时间+刷新按钮+下拉；`ensureSession`→强类型 snapshot；失败 toast+红字；无 pretty-JSON；切 Tab / `_refreshAll` 对称 reload
+- [ ] **六 Tab 共享基建**：`KeyboardDismissHelper`（滚动区点空白收键盘）；`CountChipBar` / `SwitchRow` / `RuleRowChrome`（底外距 8、`highlightedBorder`、meta）/ `StatusPill` 固有宽 hugging / `MetaChip` / `FusedDualFieldAction` 仅 Theme 色
+- [ ] **管理 IP / 白名单 / 黑名单**：第一行 IP 左，右侧成组「本机→胶囊→启停」贴右；第二/三行说明与日期，删除与启停同宽槽右对齐；本机描边；黑名单语义/阈值/认领/clearToken 一致
+- [ ] **盾牌**：SectionCard 三开关 + Dual fused 添加；RuleRow + CountChip；删除走 `ConfirmPresenter`（Destructive）；limit 50 分页；空/错/键盘
+- [ ] **跳转**：Tonal「添加」；`JumpEditorController` FormSheet（三 Outline 字段 + enable SwitchRow，非 Alert 垫高）；三键规则行；删除 Destructive Confirm；分页/键盘
+- [ ] **证书**：三区 SectionCard（设备 / 签发 / 分享）；设备行与 Flutter 同为 `RuleRowChrome`+吊销；Fused 签发与口令；分享区导出/导入全宽 Outlined（有间距）+ 左对齐红字「清除本机证书」；本机高亮；最后吊销 → Recovery；切 Tab reload / 下拉刷新
+- [ ] **Recovery**：编号圆点步骤 + SQL 圆角卡 + Outlined「复制数据库语句」轻 toast（非 Alert）+ Filled「我知道了」返回
+- [ ] **弹窗基建**：`ConfirmPresenter`（非删除确认主钮非红）；`SecureTokenFormController`（reason + helper「在系统加固 / 安全配置中查看」）；关门禁 = 确认 → `_resolveClearTokenWithReason:` → 再关（与 Flutter 同序）；修改令牌验原令牌走 SecureToken 表单
 
 - [ ] 认领码：A issue → B claim → 两证可独立吊销
 - [ ] 分享口令 → 分享到聊天 → 对端气泡进 Gate → importWrapped
@@ -96,7 +105,7 @@ CocoaPods **不支持** Flutter 式 `git + path` 子目录一条声明。发版�
 - [ ] 发现 URL / 深链 / 扫码进 Gate.discover
 - [ ] 管理 IP / clearToken / 删当前 IP 门禁与 Flutter 一致
 - [ ] 运维消息 / 收藏入口已挂到 Gate（不再是宿主侧占位 toast）
-- [ ] `Podfile.lock` 可复现；跟版步骤已写入宿主文档
+- [ ] `Podfile.lock` 可复现；跟版步骤已写入宿主文档；宿主 `pod update AutumnOpsUI`（≥0.1.14）
 
 ---
 

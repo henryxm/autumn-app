@@ -15,5 +15,8 @@ NS_ASSUME_NONNULL_BEGIN
 + (AutumnOpsValidateResult *)sharePassphrase:(NSString *)raw;
 + (AutumnOpsValidateResult *)wrappedBlob:(NSString *)raw;
 + (AutumnOpsValidateResult *)ipOrCidr:(NSString *)raw;
+/// 管理/白/黑名单 IP；rejectPolicyBlackIp 时拒绝 0.0.0.0（对齐 Flutter wallIp）。
++ (AutumnOpsValidateResult *)wallIp:(NSString *)raw rejectPolicyBlackIp:(BOOL)rejectPolicyBlackIp;
++ (AutumnOpsValidateResult *)deviceLabel:(NSString *)raw;
 @end
 NS_ASSUME_NONNULL_END

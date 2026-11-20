@@ -66,16 +66,35 @@
 }
 
 + (AutumnOpsValidateResult *)ipOrCidr:(NSString *)raw {
+  return [self wallIp:raw rejectPolicyBlackIp:YES];
+}
+
++ (AutumnOpsValidateResult *)wallIp:(NSString *)raw rejectPolicyBlackIp:(BOOL)rejectPolicyBlackIp {
   NSString *s = [raw stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
-  if (!s.length) return [AutumnOpsValidateResult fail:@"请填写 IP"];
-  if ([s isEqualToString:@"0.0.0.0"]) return [AutumnOpsValidateResult fail:@"不能使用 0.0.0.0"];
+  if (!s.length) return [AutumnOpsValidateResult fail:@"请填写 IP 地址"];
+  if (s.length > 128) return [AutumnOpsValidateResult fail:@"IP 地址过长"];
+  if ([s rangeOfCharacterFromSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]].location != NSNotFound) {
+    return [AutumnOpsValidateResult fail:@"IP 地址不能包含空格"];
+  }
+  if (rejectPolicyBlackIp && [s isEqualToString:@"0.0.0.0"]) {
+    return [AutumnOpsValidateResult fail:@"0.0.0.0 是自动拉黑次数的策略配置，请用「黑名单次数」修改，不能当作普通 IP 添加"];
+  }
   NSRegularExpression *v4 = [NSRegularExpression regularExpressionWithPattern:@"^(?:(?:25[0-5]|2[0-4]\\d|[01]?\\d\\d?)\\.){3}(?:25[0-5]|2[0-4]\\d|[01]?\\d\\d?)$" options:0 error:nil];
   NSRegularExpression *cidr = [NSRegularExpression regularExpressionWithPattern:@"^(?:(?:25[0-5]|2[0-4]\\d|[01]?\\d\\d?)\\.){3}(?:25[0-5]|2[0-4]\\d|[01]?\\d\\d?)/(?:[0-9]|[12]\\d|3[0-2])$" options:0 error:nil];
   if ([v4 numberOfMatchesInString:s options:0 range:NSMakeRange(0, s.length)] ||
       [cidr numberOfMatchesInString:s options:0 range:NSMakeRange(0, s.length)]) {
     return [AutumnOpsValidateResult ok];
   }
-  return [AutumnOpsValidateResult fail:@"IP 格式无效"];
+  // 宽松：含冒号视为 IPv6 字面量
+  if ([s containsString:@":"]) return [AutumnOpsValidateResult ok];
+  return [AutumnOpsValidateResult fail:@"IP 格式无效，请填写 IPv4 / IPv6 地址"];
+}
+
++ (AutumnOpsValidateResult *)deviceLabel:(NSString *)raw {
+  NSString *s = [raw stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+  if (!s.length) return [AutumnOpsValidateResult ok];
+  if (s.length > 64) return [AutumnOpsValidateResult fail:@"设备标签不能超过 64 个字符"];
+  return [AutumnOpsValidateResult ok];
 }
 
 @end

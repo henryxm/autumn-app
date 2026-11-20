@@ -12,10 +12,13 @@ NS_ASSUME_NONNULL_BEGIN
 + (UIColor *)cardFill;                // #EFEFF5（highest@0.45 over surface）
 + (UIColor *)onSurface;               // #191C20
 + (UIColor *)onSurfaceVariant;        // #44474E
++ (UIColor *)secondary;               // #545F71（探测 needReset accent）
 + (UIColor *)secondaryContainer;      // #DAE2F9
 + (UIColor *)onSecondaryContainer;    // #3E4758
++ (UIColor *)tertiary;                // #6B5778（探测 pending/ready accent）
 + (UIColor *)chipOnFill;              // secondaryContainer@0.7 over surface ≈ #E3E9FB
 + (UIColor *)chipOffFill;             // errorContainer@0.45 over surface ≈ #FCEBED
++ (UIColor *)error;                   // #BA1A1A（探测失败 accent）
 + (UIColor *)errorContainer;          // #FFDAD6
 + (UIColor *)onErrorContainer;        // #93000A
 + (UIColor *)outline;                 // #74777F

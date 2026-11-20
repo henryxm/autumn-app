@@ -2,6 +2,7 @@
 #import "AutumnOpsModels.h"
 #import "AutumnOpsStore.h"
 #import "AutumnOpsProbeOutcome.h"
+#import "AutumnOpsRuntimeModels.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -15,6 +16,7 @@ typedef void (^AutumnOpsClaimBlock)(AutumnOpsClaimIssueResult * _Nullable result
 typedef void (^AutumnOpsRevokeBlock)(AutumnOpsRevokeResult * _Nullable result, NSError * _Nullable error);
 typedef void (^AutumnOpsStringBlock)(NSString * _Nullable value, NSError * _Nullable error);
 typedef void (^AutumnOpsIntBlock)(NSInteger value, NSError * _Nullable error);
+typedef void (^AutumnOpsRuntimeSnapshotBlock)(AutumnOpsRuntimeSnapshot * _Nullable snap, NSError * _Nullable error);
 
 @interface AutumnOpsClient : NSObject
 @property (nonatomic, copy, readonly) NSString *baseUrl;
@@ -63,6 +65,8 @@ typedef void (^AutumnOpsIntBlock)(NSInteger value, NSError * _Nullable error);
 
 - (void)gateGet:(AutumnOpsDictBlock)completion;
 - (void)runtimeSnapshot:(AutumnOpsDictBlock)completion;
+/// ensureSession → snapshot → 强类型模型（对齐 Flutter loadSnapshot）。
+- (void)runtimeSnapshotModel:(AutumnOpsRuntimeSnapshotBlock)completion;
 - (void)gateVerifyClearToken:(NSString *)clearToken completion:(AutumnOpsDictBlock)completion;
 - (void)gateSetClearToken:(NSString *)clearToken oldClearToken:(nullable NSString *)oldClearToken completion:(AutumnOpsDictBlock)completion;
 - (void)gateSetAdminIpEnable:(BOOL)enable clearToken:(nullable NSString *)clearToken completion:(AutumnOpsDictBlock)completion;

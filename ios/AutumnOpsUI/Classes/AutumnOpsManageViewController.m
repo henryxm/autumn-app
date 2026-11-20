@@ -1,18 +1,22 @@
 #import "AutumnOpsManageViewController.h"
 #import "AutumnOpsRecoveryViewController.h"
-#import "AutumnOpsShareHooks.h"
 #import "AutumnOpsShieldPanelView.h"
 #import "AutumnOpsJumpPanelView.h"
+#import "AutumnOpsRuntimePanelView.h"
+#import "AutumnOpsIpListPanelView.h"
+#import "AutumnOpsCertPanelView.h"
+#import "AutumnOpsConfirmPresenter.h"
+#import "AutumnOpsFusedFieldActionView.h"
+#import "AutumnOpsSecureTokenFormController.h"
+#import "AutumnOpsUITheme.h"
 #import "AutumnOpsScrollableTabBar.h"
 #import "AutumnOpsPageChromeView.h"
 #import "AutumnOpsSectionCardView.h"
 #import "AutumnOpsSitesViewController.h"
 #import "AutumnOpsUIConfig.h"
-#import "AutumnOpsUITheme.h"
 #import "AutumnOpsUIControls.h"
 #import <AutumnOpsCore/AutumnOpsCore.h>
 #import <Masonry/Masonry.h>
-#import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 
 typedef NS_ENUM(NSInteger, AutumnOpsClearTokenUI) {
   AutumnOpsClearTokenUIEmpty = 0,
@@ -23,7 +27,7 @@ typedef NS_ENUM(NSInteger, AutumnOpsClearTokenUI) {
   AutumnOpsClearTokenUIError,
 };
 
-@interface AutumnOpsManageViewController () <UITableViewDataSource, UITableViewDelegate>
+@interface AutumnOpsManageViewController ()
 @property (nonatomic, strong) AutumnOpsClient *client;
 @property (nonatomic, strong) AutumnOpsSiteEntry *siteEntry;
 @property (nonatomic, strong) AutumnOpsSiteStore *siteStore;
@@ -39,11 +43,12 @@ typedef NS_ENUM(NSInteger, AutumnOpsClearTokenUI) {
 @property (nonatomic, strong) UIView *overviewPanel;
 @property (nonatomic, strong) UIScrollView *overviewScroll;
 @property (nonatomic, strong) UIStackView *overviewStack;
-@property (nonatomic, strong) UIView *runtimePanel;
-@property (nonatomic, strong) UIView *adminIpPanel;
-@property (nonatomic, strong) UIView *whitePanel;
-@property (nonatomic, strong) UIView *blackPanel;
-@property (nonatomic, strong) UIView *certPanel;
+@property (nonatomic, strong) AutumnOpsRuntimePanelView *runtimePanel;
+@property (nonatomic, strong) AutumnOpsIpListPanelView *adminIpPanel;
+@property (nonatomic, strong) AutumnOpsIpListPanelView *whitePanel;
+@property (nonatomic, strong) AutumnOpsIpListPanelView *blackPanel;
+@property (nonatomic, strong) AutumnOpsCertPanelView *certPanel;
+@property (nonatomic, strong) AutumnOpsFusedFieldActionView *firewallFused;
 
 @property (nonatomic, strong) AutumnOpsSectionCardView *siteInfoCard;
 @property (nonatomic, strong) AutumnOpsSectionCardView *discoverCard;
@@ -65,22 +70,8 @@ typedef NS_ENUM(NSInteger, AutumnOpsClearTokenUI) {
 @property (nonatomic, strong) UILabel *clearTokenHint;
 @property (nonatomic, copy, nullable) NSString *clearTokenError;
 
-@property (nonatomic, strong) UITextView *runtimeText;
-
-@property (nonatomic, strong) UITableView *adminTable;
-@property (nonatomic, strong) UITableView *whiteTable;
-@property (nonatomic, strong) UITableView *blackTable;
-@property (nonatomic, strong) UITableView *certTable;
-@property (nonatomic, copy) NSArray<AutumnOpsIpRow *> *adminRows;
-@property (nonatomic, copy) NSArray<AutumnOpsIpRow *> *whiteRows;
-@property (nonatomic, copy) NSArray<AutumnOpsIpRow *> *blackRows;
 @property (nonatomic, copy) NSArray<NSDictionary *> *certs;
 @property (nonatomic) NSInteger firewallCount;
-
-@property (nonatomic, strong) UITextField *issueLabelField;
-@property (nonatomic, strong) UITextField *passphraseField;
-@property (nonatomic, strong) UILabel *claimHint;
-@property (nonatomic, strong, nullable) AutumnOpsClaimIssueResult *lastIssue;
 
 @property (nonatomic, copy) NSString *currentIp;
 @property (nonatomic) BOOL currentIpInAdmin;
@@ -101,9 +92,6 @@ typedef NS_ENUM(NSInteger, AutumnOpsClearTokenUI) {
   self = [super initWithNibName:nil bundle:nil];
   if (self) {
     _client = client;
-    _adminRows = @[];
-    _whiteRows = @[];
-    _blackRows = @[];
     _certs = @[];
   }
   return self;
@@ -259,29 +247,50 @@ typedef NS_ENUM(NSInteger, AutumnOpsClearTokenUI) {
 }
 
 - (void)_toast:(NSString *)msg {
-  UIAlertController *a = [UIAlertController alertControllerWithTitle:nil message:msg preferredStyle:UIAlertControllerStyleAlert];
-  [a addAction:[UIAlertAction actionWithTitle:@"好" style:UIAlertActionStyleDefault handler:nil]];
-  [self presentViewController:a animated:YES completion:nil];
+  if (!msg.length) return;
+  UIView *box = [UIView new];
+  box.backgroundColor = [[UIColor blackColor] colorWithAlphaComponent:0.78];
+  box.layer.cornerRadius = 10;
+  box.clipsToBounds = YES;
+  UILabel *l = [UILabel new];
+  l.text = msg;
+  l.textColor = UIColor.whiteColor;
+  l.font = [UIFont systemFontOfSize:14];
+  l.textAlignment = NSTextAlignmentCenter;
+  l.numberOfLines = 0;
+  [box addSubview:l];
+  l.translatesAutoresizingMaskIntoConstraints = NO;
+  [NSLayoutConstraint activateConstraints:@[
+    [l.topAnchor constraintEqualToAnchor:box.topAnchor constant:10],
+    [l.bottomAnchor constraintEqualToAnchor:box.bottomAnchor constant:-10],
+    [l.leadingAnchor constraintEqualToAnchor:box.leadingAnchor constant:16],
+    [l.trailingAnchor constraintEqualToAnchor:box.trailingAnchor constant:-16],
+  ]];
+  UIView *host = self.view;
+  [host addSubview:box];
+  box.translatesAutoresizingMaskIntoConstraints = NO;
+  [NSLayoutConstraint activateConstraints:@[
+    [box.centerXAnchor constraintEqualToAnchor:host.centerXAnchor],
+    [box.bottomAnchor constraintEqualToAnchor:host.safeAreaLayoutGuide.bottomAnchor constant:-24],
+    [box.leadingAnchor constraintGreaterThanOrEqualToAnchor:host.leadingAnchor constant:32],
+    [box.trailingAnchor constraintLessThanOrEqualToAnchor:host.trailingAnchor constant:-32],
+  ]];
+  dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.6 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+    [UIView animateWithDuration:0.25 animations:^{ box.alpha = 0; } completion:^(BOOL finished) {
+      [box removeFromSuperview];
+    }];
+  });
 }
 
 - (void)_confirm:(NSString *)title body:(NSString *)body ok:(void (^)(void))ok {
-  UIAlertController *a = [UIAlertController alertControllerWithTitle:title message:body preferredStyle:UIAlertControllerStyleAlert];
-  [a addAction:[UIAlertAction actionWithTitle:@"取消" style:UIAlertActionStyleCancel handler:nil]];
-  [a addAction:[UIAlertAction actionWithTitle:@"确认" style:UIAlertActionStyleDestructive handler:^(UIAlertAction *action) { if (ok) ok(); }]];
-  [self presentViewController:a animated:YES completion:nil];
+  [self _confirm:title body:body destructive:NO ok:ok];
+}
+
+- (void)_confirm:(NSString *)title body:(NSString *)body destructive:(BOOL)destructive ok:(void (^)(void))ok {
+  [AutumnOpsConfirmPresenter presentFrom:self title:title body:body destructive:destructive onConfirm:ok];
 }
 
 #pragma mark - Panels
-
-- (UITableView *)_table {
-  UITableView *t = [[UITableView alloc] initWithFrame:CGRectZero style:UITableViewStyleInsetGrouped];
-  t.dataSource = self;
-  t.delegate = self;
-  t.rowHeight = UITableViewAutomaticDimension;
-  t.estimatedRowHeight = 52;
-  [t registerClass:[UITableViewCell class] forCellReuseIdentifier:@"row"];
-  return t;
-}
 
 - (void)_buildPanels {
   // Overview — Flutter section cards
@@ -410,22 +419,17 @@ typedef NS_ENUM(NSInteger, AutumnOpsClearTokenUI) {
 
   [self _reloadOverviewCards];
 
-  // Runtime
-  _runtimePanel = [UIView new];
-  _runtimeText = [UITextView new];
-  _runtimeText.editable = NO;
-  _runtimeText.font = [UIFont monospacedSystemFontOfSize:12 weight:UIFontWeightRegular];
-  [_runtimePanel addSubview:_runtimeText];
-  [_runtimeText mas_makeConstraints:^(MASConstraintMaker *make) {
-    make.edges.equalTo(_runtimePanel).insets(UIEdgeInsetsMake(8, 8, 8, 8));
-  }];
-
-  // IP panels
-  _adminIpPanel = [self _ipPanelKind:0];
-  _whitePanel = [self _ipPanelKind:1];
-  _blackPanel = [self _ipPanelKind:2];
-
   __weak typeof(self) weakSelf = self;
+  _adminIpPanel = [self _makeAdminIpPanel];
+  _whitePanel = [self _makeWhiteIpPanel];
+  _blackPanel = [self _makeBlackIpPanel];
+
+  _runtimePanel = [[AutumnOpsRuntimePanelView alloc] initWithClient:self.client toast:^(NSString *msg) {
+    [weakSelf _toast:msg];
+  } setBusy:^(BOOL busy) {
+    if (busy) [weakSelf _beginBusy];
+    else [weakSelf _endBusy];
+  }];
   _shieldPanel = [[AutumnOpsShieldPanelView alloc] initWithClient:self.client toast:^(NSString *msg) {
     [weakSelf _toast:msg];
   } setBusy:^(BOOL busy) {
@@ -439,87 +443,270 @@ typedef NS_ENUM(NSInteger, AutumnOpsClearTokenUI) {
     else [weakSelf _endBusy];
   }];
 
-  // Cert
-  _certPanel = [UIView new];
-  _issueLabelField = [UITextField new];
-  _issueLabelField.borderStyle = UITextBorderStyleRoundedRect;
-  _issueLabelField.text = @"新设备";
-  _issueLabelField.placeholder = @"认领设备标签";
-  _passphraseField = [UITextField new];
-  _passphraseField.borderStyle = UITextBorderStyleRoundedRect;
-  _passphraseField.secureTextEntry = YES;
-  _passphraseField.placeholder = @"分享口令（导出/分享）";
-  _claimHint = [UILabel new];
-  _claimHint.numberOfLines = 0;
-  _claimHint.font = [UIFont systemFontOfSize:12];
-  UIButton *issue = [UIButton buttonWithType:UIButtonTypeSystem];
-  [issue setTitle:@"签发认领码" forState:UIControlStateNormal];
-  [issue addTarget:self action:@selector(_issueClaim) forControlEvents:UIControlEventTouchUpInside];
-  UIButton *shareChat = [UIButton buttonWithType:UIButtonTypeSystem];
-  [shareChat setTitle:@"分享到聊天" forState:UIControlStateNormal];
-  [shareChat addTarget:self action:@selector(_shareToChat) forControlEvents:UIControlEventTouchUpInside];
-  UIButton *exportBtn = [UIButton buttonWithType:UIButtonTypeSystem];
-  [exportBtn setTitle:@"导出 .autumnops" forState:UIControlStateNormal];
-  [exportBtn addTarget:self action:@selector(_exportFile) forControlEvents:UIControlEventTouchUpInside];
-  UIButton *clearLocal = [UIButton buttonWithType:UIButtonTypeSystem];
-  [clearLocal setTitle:@"清除本机凭证" forState:UIControlStateNormal];
-  [clearLocal setTitleColor:UIColor.systemRedColor forState:UIControlStateNormal];
-  [clearLocal addTarget:self action:@selector(_clearLocal) forControlEvents:UIControlEventTouchUpInside];
-  UIStackView *certTop = [[UIStackView alloc] initWithArrangedSubviews:@[_issueLabelField, issue, _claimHint, _passphraseField, shareChat, exportBtn, clearLocal]];
-  certTop.axis = UILayoutConstraintAxisVertical;
-  certTop.spacing = 8;
-  _certTable = [self _table];
-  UIRefreshControl *certRC = [UIRefreshControl new];
-  [certRC addTarget:self action:@selector(_pullRefreshAll) forControlEvents:UIControlEventValueChanged];
-  _certTable.refreshControl = certRC;
-  [_certPanel addSubview:certTop];
-  [_certPanel addSubview:_certTable];
-  [certTop mas_makeConstraints:^(MASConstraintMaker *make) {
-    make.top.left.right.equalTo(_certPanel).insets(UIEdgeInsetsMake(12, 16, 0, 16));
-  }];
-  [_certTable mas_makeConstraints:^(MASConstraintMaker *make) {
-    make.top.equalTo(certTop.mas_bottom).offset(8);
-    make.left.right.bottom.equalTo(_certPanel);
+  _certPanel = [[AutumnOpsCertPanelView alloc] initWithClient:self.client
+                                                   siteEntry:self.siteEntry
+                                                   siteStore:self.siteStore
+                                                       toast:^(NSString *msg) { [weakSelf _toast:msg]; }
+                                                     setBusy:^(BOOL busy) {
+                                                       if (busy) [weakSelf _beginBusy];
+                                                       else [weakSelf _endBusy];
+                                                     }
+                                               onNeedRefresh:^{ [weakSelf _refreshAll]; }
+                                            onLastCertRevoked:^{
+                                              [weakSelf _markSiteUnenrolledAndClear];
+                                              AutumnOpsRecoveryViewController *vc =
+                                                  [[AutumnOpsRecoveryViewController alloc] initWithSiteTitle:weakSelf.siteEntry.title
+                                                                                                     baseUrl:weakSelf.client.baseUrl];
+                                              NSMutableArray *stack = [(weakSelf.navigationController.viewControllers ?: @[]) mutableCopy];
+                                              if (stack.count) [stack removeLastObject];
+                                              [stack addObject:vc];
+                                              [weakSelf.navigationController setViewControllers:stack animated:YES];
+                                            }];
+}
+
+- (AutumnOpsIpClearTokenResolver)_ipClearTokenResolver {
+  __weak typeof(self) weakSelf = self;
+  return ^(NSString *reason, void (^done)(NSString *token)) {
+    [weakSelf _resolveClearTokenWithReason:reason completion:done];
+  };
+}
+
+- (void)_resolveClearTokenWithReason:(NSString *)reason completion:(void (^)(NSString *token))completion {
+  if (self.clearTokenConfigured != nil && !self.clearTokenConfigured.boolValue) {
+    [self _toast:@"请先在概览页配置清除确认令牌"];
+    if (completion) completion(nil);
+    return;
+  }
+  NSString *ready = [self _readyClearTokenOrNil];
+  if (ready.length) {
+    if (completion) completion(ready);
+    return;
+  }
+  AutumnOpsSecureTokenFormController *vc =
+      [[AutumnOpsSecureTokenFormController alloc] initWithTitle:@"清除确认令牌"
+                                                         reason:reason.length ? reason : @"请输入清除确认令牌"
+                                                     fieldLabel:@"请输入清除确认令牌"
+                                                    fieldHelper:@"在系统加固 / 安全配置中查看"
+                                                   confirmLabel:@"校验并继续"
+                                                    initialText:self.clearTokenField.text];
+  __weak typeof(self) weakSelf = self;
+  vc.onResult = ^(NSString *tok) {
+    if (!tok.length) {
+      if (completion) completion(nil);
+      return;
+    }
+    AutumnOpsValidateResult *check = [AutumnOpsValidators clearToken:tok];
+    if (!check.ok) {
+      [weakSelf _toast:check.error ?: @"令牌无效"];
+      if (completion) completion(nil);
+      return;
+    }
+    [weakSelf _beginBusy];
+    [weakSelf.client gateVerifyClearToken:tok completion:^(NSDictionary *data, NSError *error) {
+      [weakSelf _endBusy];
+      if (error) {
+        [weakSelf _toast:error.localizedDescription];
+        if (completion) completion(nil);
+        return;
+      }
+      weakSelf.clearTokenField.text = tok;
+      weakSelf.verifiedClearToken = tok;
+      weakSelf.clearTokenStatus = AutumnOpsClearTokenUIReady;
+      [weakSelf _reloadOverviewCards];
+      if (completion) completion(tok);
+    }];
+  };
+  UINavigationController *nav = [[UINavigationController alloc] initWithRootViewController:vc];
+  nav.modalPresentationStyle = UIModalPresentationFormSheet;
+  [self presentViewController:nav animated:YES completion:nil];
+}
+
+- (void)_syncIpPanelsMembership {
+  self.adminIpPanel.currentIp = self.currentIp ?: @"";
+  self.adminIpPanel.claimCurrentHidden = self.currentIpInAdmin;
+  self.whitePanel.currentIp = self.currentIp ?: @"";
+  self.whitePanel.claimCurrentHidden = self.currentIpInAdmin || self.currentIpInWhite;
+  self.blackPanel.currentIp = self.currentIp ?: @"";
+}
+
+- (AutumnOpsIpListPanelView *)_makeAdminIpPanel {
+  __weak typeof(self) weakSelf = self;
+  AutumnOpsIpPanelToast toast = ^(NSString *msg) { [weakSelf _toast:msg]; };
+  AutumnOpsIpPanelBusy busy = ^(BOOL on) { if (on) [weakSelf _beginBusy]; else [weakSelf _endBusy]; };
+  return [[AutumnOpsIpListPanelView alloc]
+      initWithTitle:@"管理 IP"
+        description:@"控制谁可以打开后台登录页（进门白名单）。与「用户白名单 / 黑名单」分表，互不影响。"
+         statusMode:AutumnOpsIpStatusModeForbidden
+        ipInputHint:@"请输入 IP 地址"
+  allowClaimCurrent:YES
+requireClearTokenForCurrent:YES
+    rejectPolicyBlackIp:NO
+             header:nil
+           loadPage:^(NSInteger page, NSInteger limit, void (^done)(AutumnOpsIpPage *, NSError *)) {
+             [weakSelf.client ensureSession:^(NSError *error) {
+               if (error) { done(nil, error); return; }
+               [weakSelf.client adminIpListPage:page limit:limit completion:done];
+             }];
+           }
+              onAdd:^(NSString *ip, BOOL claimCurrent, void (^done)(NSString *, NSError *)) {
+                [weakSelf.client adminIpAdd:ip claimCurrent:claimCurrent completion:^(NSDictionary *data, NSError *error) {
+                  if (error) done(nil, error);
+                  else done([NSString stringWithFormat:@"%@", data[@"ip"] ?: (ip ?: @"")], nil);
+                }];
+              }
+           onRemove:^(NSString *ip, NSString *clearToken, void (^done)(NSError *)) {
+             [weakSelf.client adminIpRemove:ip clearToken:clearToken completion:^(NSDictionary *data, NSError *error) {
+               done(error);
+             }];
+           }
+           onToggle:^(NSString *ip, BOOL enable, void (^done)(NSError *)) {
+             [weakSelf.client adminIpSetForbidden:ip forbidden:!enable completion:^(NSDictionary *data, NSError *error) {
+               done(error);
+             }];
+           }
+  resolveClearToken:[self _ipClearTokenResolver]
+onMembershipMayChange:^{ [weakSelf _refreshAll]; }
+              toast:toast
+            setBusy:busy];
+}
+
+- (AutumnOpsIpListPanelView *)_makeWhiteIpPanel {
+  __weak typeof(self) weakSelf = self;
+  AutumnOpsIpPanelToast toast = ^(NSString *msg) { [weakSelf _toast:msg]; };
+  AutumnOpsIpPanelBusy busy = ^(BOOL on) { if (on) [weakSelf _beginBusy]; else [weakSelf _endBusy]; };
+  return [[AutumnOpsIpListPanelView alloc]
+      initWithTitle:@"用户白名单"
+        description:@"防火墙白名单：列入后可降低被误拉黑风险。与「管理 IP」不是同一张表。"
+         statusMode:AutumnOpsIpStatusModeForbidden
+        ipInputHint:@"请输入白名单 IP"
+  allowClaimCurrent:YES
+requireClearTokenForCurrent:YES
+    rejectPolicyBlackIp:NO
+             header:nil
+           loadPage:^(NSInteger page, NSInteger limit, void (^done)(AutumnOpsIpPage *, NSError *)) {
+             [weakSelf.client ensureSession:^(NSError *error) {
+               if (error) { done(nil, error); return; }
+               [weakSelf.client ipWhiteListPage:page limit:limit completion:done];
+             }];
+           }
+              onAdd:^(NSString *ip, BOOL claimCurrent, void (^done)(NSString *, NSError *)) {
+                [weakSelf.client ipWhiteAdd:ip claimCurrent:claimCurrent completion:^(NSDictionary *data, NSError *error) {
+                  if (error) done(nil, error);
+                  else done([NSString stringWithFormat:@"%@", data[@"ip"] ?: (ip ?: @"")], nil);
+                }];
+              }
+           onRemove:^(NSString *ip, NSString *clearToken, void (^done)(NSError *)) {
+             [weakSelf.client ipWhiteRemove:ip clearToken:clearToken completion:^(NSDictionary *data, NSError *error) {
+               done(error);
+             }];
+           }
+           onToggle:^(NSString *ip, BOOL enable, void (^done)(NSError *)) {
+             [weakSelf.client ipWhiteSetForbidden:ip forbidden:!enable completion:^(NSDictionary *data, NSError *error) {
+               done(error);
+             }];
+           }
+  resolveClearToken:[self _ipClearTokenResolver]
+onMembershipMayChange:^{ [weakSelf _refreshAll]; }
+              toast:toast
+            setBusy:busy];
+}
+
+- (UIView *)_makeBlackFirewallHeader {
+  UIStackView *box = [UIStackView new];
+  box.axis = UILayoutConstraintAxisVertical;
+  box.spacing = 8;
+  UILabel *t = [UILabel new];
+  t.text = @"自动拉黑阈值（策略 0.0.0.0）";
+  t.font = [UIFont systemFontOfSize:13 weight:UIFontWeightSemibold];
+  t.textColor = AutumnOpsUITheme.onSurface;
+  UILabel *d = [UILabel new];
+  d.text = @"同一刷新周期内访问超过该次数将自动加入黑名单。最小值 500。";
+  d.numberOfLines = 0;
+  d.font = [UIFont systemFontOfSize:12];
+  d.textColor = AutumnOpsUITheme.onSurfaceVariant;
+  _firewallFused = [[AutumnOpsFusedFieldActionView alloc] initWithHint:@"例如 1000"
+                                                           actionTitle:@"保存"
+                                                                target:self
+                                                                action:@selector(_saveFirewallCount)];
+  _firewallFused.textField.keyboardType = UIKeyboardTypeNumberPad;
+  [box addArrangedSubview:t];
+  [box addArrangedSubview:d];
+  [box addArrangedSubview:_firewallFused];
+  [self _loadFirewallCountIntoHeader];
+  return box;
+}
+
+- (void)_loadFirewallCountIntoHeader {
+  __weak typeof(self) weakSelf = self;
+  [self.client ipBlackFirewallCount:^(NSInteger value, NSError *error) {
+    if (error) return;
+    weakSelf.firewallCount = value;
+    weakSelf.firewallFused.textField.text = [NSString stringWithFormat:@"%ld", (long)value];
   }];
 }
 
-- (UIView *)_ipPanelKind:(NSInteger)kind {
-  UIView *panel = [UIView new];
-  UITableView *table = [self _table];
-  UIRefreshControl *ipRC = [UIRefreshControl new];
-  ipRC.tag = kind;
-  [ipRC addTarget:self action:@selector(_pullRefreshIp:) forControlEvents:UIControlEventValueChanged];
-  table.refreshControl = ipRC;
-  UIButton *add = [UIButton buttonWithType:UIButtonTypeSystem];
-  [add setTitle:kind == 2 ? @"添加黑名单 IP" : @"添加本机/指定 IP" forState:UIControlStateNormal];
-  add.tag = kind;
-  [add addTarget:self action:@selector(_addIp:) forControlEvents:UIControlEventTouchUpInside];
-  UIStackView *top = [[UIStackView alloc] initWithArrangedSubviews:@[add]];
-  top.axis = UILayoutConstraintAxisVertical;
-  if (kind == 2) {
-    UILabel *fw = [UILabel new];
-    fw.tag = 900;
-    fw.font = [UIFont systemFontOfSize:13];
-    fw.text = @"防火墙阈值：-";
-    UIButton *setFw = [UIButton buttonWithType:UIButtonTypeSystem];
-    [setFw setTitle:@"设置阈值" forState:UIControlStateNormal];
-    [setFw addTarget:self action:@selector(_setFirewall) forControlEvents:UIControlEventTouchUpInside];
-    [top addArrangedSubview:fw];
-    [top addArrangedSubview:setFw];
+- (void)_saveFirewallCount {
+  NSInteger n = self.firewallFused.textField.text.integerValue;
+  if (n < 500) {
+    [self _toast:@"阈值须为不小于 500 的整数"];
+    return;
   }
-  [panel addSubview:top];
-  [panel addSubview:table];
-  [top mas_makeConstraints:^(MASConstraintMaker *make) {
-    make.top.left.right.equalTo(panel).insets(UIEdgeInsetsMake(8, 16, 0, 16));
+  [self _beginBusy];
+  __weak typeof(self) weakSelf = self;
+  [self.client ipBlackSetFirewallCount:n completion:^(NSInteger value, NSError *error) {
+    [weakSelf _endBusy];
+    if (error) {
+      [weakSelf _toast:error.localizedDescription];
+      return;
+    }
+    weakSelf.firewallCount = value;
+    weakSelf.firewallFused.textField.text = [NSString stringWithFormat:@"%ld", (long)value];
+    [weakSelf _toast:[NSString stringWithFormat:@"已保存黑名单阈值：%ld 次/刷新周期", (long)value]];
   }];
-  [table mas_makeConstraints:^(MASConstraintMaker *make) {
-    make.top.equalTo(top.mas_bottom).offset(4);
-    make.left.right.bottom.equalTo(panel);
-  }];
-  if (kind == 0) _adminTable = table;
-  else if (kind == 1) _whiteTable = table;
-  else _blackTable = table;
-  return panel;
+}
+
+- (AutumnOpsIpListPanelView *)_makeBlackIpPanel {
+  __weak typeof(self) weakSelf = self;
+  AutumnOpsIpPanelToast toast = ^(NSString *msg) { [weakSelf _toast:msg]; };
+  AutumnOpsIpPanelBusy busy = ^(BOOL on) { if (on) [weakSelf _beginBusy]; else [weakSelf _endBusy]; };
+  return [[AutumnOpsIpListPanelView alloc]
+      initWithTitle:@"用户黑名单"
+        description:@"防火墙黑名单：生效后直接拒绝访问。停用可保留记录而不再拦截。"
+                     @"「0.0.0.0」不是普通 IP，而是服务端存放自动拉黑阈值的策略行（列表已隐藏）；请用上方阈值修改。"
+         statusMode:AutumnOpsIpStatusModeAvailable
+        ipInputHint:@"请输入黑名单 IP（勿填 0.0.0.0）"
+  allowClaimCurrent:NO
+requireClearTokenForCurrent:NO
+    rejectPolicyBlackIp:YES
+             header:[self _makeBlackFirewallHeader]
+           loadPage:^(NSInteger page, NSInteger limit, void (^done)(AutumnOpsIpPage *, NSError *)) {
+             [weakSelf.client ensureSession:^(NSError *error) {
+               if (error) { done(nil, error); return; }
+               [weakSelf.client ipBlackListPage:page limit:limit completion:done];
+             }];
+           }
+              onAdd:^(NSString *ip, BOOL claimCurrent, void (^done)(NSString *, NSError *)) {
+                (void)claimCurrent;
+                [weakSelf.client ipBlackAdd:ip completion:^(NSDictionary *data, NSError *error) {
+                  if (error) done(nil, error);
+                  else done([NSString stringWithFormat:@"%@", data[@"ip"] ?: (ip ?: @"")], nil);
+                }];
+              }
+           onRemove:^(NSString *ip, NSString *clearToken, void (^done)(NSError *)) {
+             (void)clearToken;
+             [weakSelf.client ipBlackRemove:ip completion:^(NSDictionary *data, NSError *error) {
+               done(error);
+             }];
+           }
+           onToggle:^(NSString *ip, BOOL enable, void (^done)(NSError *)) {
+             [weakSelf.client ipBlackSetAvailable:ip available:enable ? 0 : 1 completion:^(NSDictionary *data, NSError *error) {
+               done(error);
+             }];
+           }
+  resolveClearToken:nil
+onMembershipMayChange:nil
+              toast:toast
+            setBusy:busy];
 }
 
 - (void)_tabChanged {
@@ -530,12 +717,23 @@ typedef NS_ENUM(NSInteger, AutumnOpsClearTokenUI) {
   UIView *p = panels[i];
   [self.contentHost addSubview:p];
   [p mas_makeConstraints:^(MASConstraintMaker *make) { make.edges.equalTo(self.contentHost); }];
-  if (i == 1) [self _loadRuntime];
-  if (i == 2) [self _loadIpKind:0];
-  if (i == 3) [self _loadIpKind:1];
-  if (i == 4) [self _loadIpKind:2];
+  if (i == 1) [self.runtimePanel reload];
+  if (i == 2) {
+    [self _syncIpPanelsMembership];
+    [self.adminIpPanel reload];
+  }
+  if (i == 3) {
+    [self _syncIpPanelsMembership];
+    [self.whitePanel reload];
+  }
+  if (i == 4) {
+    [self _syncIpPanelsMembership];
+    [self _loadFirewallCountIntoHeader];
+    [self.blackPanel reload];
+  }
   if (i == 5) [self.shieldPanel reload];
   if (i == 6) [self.jumpPanel reload];
+  if (i == 7) [self.certPanel reload];
 }
 
 #pragma mark - Refresh
@@ -544,23 +742,9 @@ typedef NS_ENUM(NSInteger, AutumnOpsClearTokenUI) {
   [self _refreshAll];
 }
 
-- (void)_pullRefreshIp:(UIRefreshControl *)rc {
-  [self _loadIpKind:rc.tag];
-}
-
 - (void)_endGlobalPullRefresh {
   if (self.overviewScroll.refreshControl.refreshing) {
     [self.overviewScroll.refreshControl endRefreshing];
-  }
-  if (self.certTable.refreshControl.refreshing) {
-    [self.certTable.refreshControl endRefreshing];
-  }
-}
-
-- (void)_endIpPullRefresh:(NSInteger)kind {
-  UITableView *table = kind == 0 ? self.adminTable : (kind == 1 ? self.whiteTable : self.blackTable);
-  if (table.refreshControl.refreshing) {
-    [table.refreshControl endRefreshing];
   }
 }
 
@@ -617,49 +801,19 @@ typedef NS_ENUM(NSInteger, AutumnOpsClearTokenUI) {
     self.activeCount = [data[@"activeCount"] respondsToSelector:@selector(integerValue)] ? [data[@"activeCount"] integerValue] : maps.count;
     [self _setStatus:[NSString stringWithFormat:@"已同步 · 本机访问 IP：%@", self.currentIp.length ? self.currentIp : @"未知"]];
     [self _reloadOverviewCards];
-    [self.certTable reloadData];
+    [self.certPanel applyCerts:self.certs activeCount:self.activeCount];
+    [self _syncIpPanelsMembership];
     NSInteger tab = self.tabs.selectedIndex;
-    if (tab == 2) [self _loadIpKind:0];
-    if (tab == 3) [self _loadIpKind:1];
-    if (tab == 4) [self _loadIpKind:2];
+    if (tab == 1) [self.runtimePanel reload];
+    if (tab == 2) [self.adminIpPanel reload];
+    if (tab == 3) [self.whitePanel reload];
+    if (tab == 4) {
+      [self _loadFirewallCountIntoHeader];
+      [self.blackPanel reload];
+    }
     if (tab == 5) [self.shieldPanel reload];
     if (tab == 6) [self.jumpPanel reload];
   }];
-}
-
-- (void)_loadRuntime {
-  [self _beginBusy];
-  [self.client runtimeSnapshot:^(NSDictionary *data, NSError *error) {
-    [self _endBusy];
-    if (error) {
-      self.runtimeText.text = error.localizedDescription;
-      return;
-    }
-    NSData *json = [NSJSONSerialization dataWithJSONObject:data ?: @{} options:NSJSONWritingPrettyPrinted error:nil];
-    self.runtimeText.text = json ? [[NSString alloc] initWithData:json encoding:NSUTF8StringEncoding] : @"";
-  }];
-}
-
-- (void)_loadIpKind:(NSInteger)kind {
-  [self _beginBusy];
-  void (^done)(AutumnOpsIpPage *, NSError *) = ^(AutumnOpsIpPage *page, NSError *error) {
-    [self _endBusy];
-    [self _endIpPullRefresh:kind];
-    if (error) { [self _toast:error.localizedDescription]; return; }
-    if (kind == 0) { self.adminRows = page.list; [self.adminTable reloadData]; }
-    else if (kind == 1) { self.whiteRows = page.list; [self.whiteTable reloadData]; }
-    else { self.blackRows = page.list; [self.blackTable reloadData]; }
-  };
-  if (kind == 0) [self.client adminIpListPage:1 limit:100 completion:done];
-  else if (kind == 1) [self.client ipWhiteListPage:1 limit:100 completion:done];
-  else {
-    [self.client ipBlackListPage:1 limit:100 completion:done];
-    [self.client ipBlackFirewallCount:^(NSInteger value, NSError *error) {
-      self.firewallCount = value;
-      UILabel *fw = [self.blackPanel viewWithTag:900];
-      if ([fw isKindOfClass:[UILabel class]]) fw.text = [NSString stringWithFormat:@"防火墙阈值：%ld", (long)value];
-    }];
-  }
 }
 
 #pragma mark - Overview actions
@@ -806,16 +960,19 @@ typedef NS_ENUM(NSInteger, AutumnOpsClearTokenUI) {
       [self _toast:@"请先配置清除确认令牌"];
       return;
     }
-    NSString *tok = [self _readyClearTokenOrNil];
-    if (!tok.length) {
-      [self _toast:@"关闭管理 IP 门禁需先在概览校验清除确认令牌"];
-      return;
-    }
+    __weak typeof(self) weakSelf = self;
     [self _confirm:@"关闭管理 IP 校验"
               body:@"关闭后不再校验「管理 IP」名单：任意来源 IP 只要拿到超管账号，即可进入后台与运维接口。"
                    @"管理 IP 列表仍会保留，但暂时不生效。仅在确认环境安全时关闭。确定？"
                 ok:^{
-      [self _applyAdminIpEnable:NO clearToken:tok];
+      [weakSelf _resolveClearTokenWithReason:@"关闭管理 IP 校验后仅依赖超管账号，须提供清除确认令牌。"
+                                  completion:^(NSString *token) {
+        if (!token.length) {
+          [weakSelf _toast:@"已取消：需要清除确认令牌"];
+          return;
+        }
+        [weakSelf _applyAdminIpEnable:NO clearToken:token];
+      }];
     }];
     return;
   }
@@ -943,26 +1100,34 @@ typedef NS_ENUM(NSInteger, AutumnOpsClearTokenUI) {
   if (modifying) {
     NSString *old = self.verifiedClearToken;
     if (old.length == 0 || [old isEqualToString:t]) {
-      UIAlertController *a = [UIAlertController alertControllerWithTitle:@"验证原令牌"
-                                                                 message:@"修改清除确认令牌须先验证原令牌。"
-                                                          preferredStyle:UIAlertControllerStyleAlert];
-      [a addTextFieldWithConfigurationHandler:^(UITextField *tf) {
-        tf.secureTextEntry = YES;
-        tf.placeholder = @"原清除确认令牌";
-      }];
-      [a addAction:[UIAlertAction actionWithTitle:@"取消" style:UIAlertActionStyleCancel handler:nil]];
-      [a addAction:[UIAlertAction actionWithTitle:@"继续" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
-        NSString *entered = [a.textFields.firstObject.text stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+      AutumnOpsSecureTokenFormController *vc =
+          [[AutumnOpsSecureTokenFormController alloc] initWithTitle:@"验证原令牌"
+                                                             reason:@"修改清除确认令牌须先验证原令牌。"
+                                                         fieldLabel:@"原清除确认令牌"
+                                                        fieldHelper:@"在系统加固 / 安全配置中查看"
+                                                       confirmLabel:@"继续"
+                                                        initialText:nil];
+      __weak typeof(self) weakSelf = self;
+      vc.onResult = ^(NSString *entered) {
+        if (!entered.length) return;
         AutumnOpsValidateResult *oldVr = [AutumnOpsValidators clearToken:entered];
-        if (!oldVr.ok) { [self _toast:oldVr.error ?: @"原令牌无效"]; return; }
-        [self _beginBusy];
-        [self.client gateSetClearToken:t oldClearToken:entered completion:^(NSDictionary *data, NSError *error) {
-          [self _endBusy];
-          if (error) { [self _handleClearTokenFailure:error]; return; }
-          [self _markClearTokenReady:t toast:@"已更新清除确认令牌"];
+        if (!oldVr.ok) {
+          [weakSelf _toast:oldVr.error ?: @"原令牌无效"];
+          return;
+        }
+        [weakSelf _beginBusy];
+        [weakSelf.client gateSetClearToken:t oldClearToken:entered completion:^(NSDictionary *data, NSError *error) {
+          [weakSelf _endBusy];
+          if (error) {
+            [weakSelf _handleClearTokenFailure:error];
+            return;
+          }
+          [weakSelf _markClearTokenReady:t toast:@"已更新清除确认令牌"];
         }];
-      }]];
-      [self presentViewController:a animated:YES completion:nil];
+      };
+      UINavigationController *nav = [[UINavigationController alloc] initWithRootViewController:vc];
+      nav.modalPresentationStyle = UIModalPresentationFormSheet;
+      [self presentViewController:nav animated:YES completion:nil];
       return;
     }
     [self _beginBusy];
@@ -993,266 +1158,6 @@ typedef NS_ENUM(NSInteger, AutumnOpsClearTokenUI) {
     self.siteEntry.enrolled = NO;
     self.siteEntry.certId = nil;
     [self.siteStore upsertSite:self.siteEntry error:nil];
-  }
-}
-
-#pragma mark - IP
-
-- (void)_addIp:(UIButton *)sender {
-  NSInteger kind = sender.tag;
-  BOOL claimHidden = (kind == 0 && self.currentIpInAdmin) || (kind == 1 && (self.currentIpInAdmin || self.currentIpInWhite));
-  NSString *msg = claimHidden
-      ? @"请填写 IP（当前访问 IP 已在名单中，勿留空认领）"
-      : @"留空表示认领当前访问 IP（黑名单须填写）";
-  UIAlertController *a = [UIAlertController alertControllerWithTitle:@"添加 IP" message:msg preferredStyle:UIAlertControllerStyleAlert];
-  [a addTextFieldWithConfigurationHandler:^(UITextField *tf) { tf.placeholder = @"IP"; }];
-  [a addAction:[UIAlertAction actionWithTitle:@"取消" style:UIAlertActionStyleCancel handler:nil]];
-  [a addAction:[UIAlertAction actionWithTitle:@"添加" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
-    NSString *ip = [a.textFields.firstObject.text stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
-    if (claimHidden && !ip.length) {
-      [self _toast:@"当前 IP 已在名单中，请填写其它 IP"];
-      return;
-    }
-    [self _beginBusy];
-    AutumnOpsDictBlock done = ^(NSDictionary *data, NSError *error) {
-      [self _endBusy];
-      if (error) [self _toast:error.localizedDescription];
-      else {
-        [self _loadIpKind:kind];
-        [self _refreshAll];
-      }
-    };
-    if (kind == 0) [self.client adminIpAdd:ip.length ? ip : nil claimCurrent:ip.length == 0 completion:done];
-    else if (kind == 1) [self.client ipWhiteAdd:ip.length ? ip : nil claimCurrent:ip.length == 0 completion:done];
-    else {
-      if (!ip.length) { [self _endBusy]; [self _toast:@"黑名单须填写 IP"]; return; }
-      [self.client ipBlackAdd:ip completion:done];
-    }
-  }]];
-  [self presentViewController:a animated:YES completion:nil];
-}
-
-- (void)_setFirewall {
-  UIAlertController *a = [UIAlertController alertControllerWithTitle:@"防火墙阈值" message:nil preferredStyle:UIAlertControllerStyleAlert];
-  [a addTextFieldWithConfigurationHandler:^(UITextField *tf) {
-    tf.keyboardType = UIKeyboardTypeNumberPad;
-    tf.text = [NSString stringWithFormat:@"%ld", (long)self.firewallCount];
-  }];
-  [a addAction:[UIAlertAction actionWithTitle:@"取消" style:UIAlertActionStyleCancel handler:nil]];
-  [a addAction:[UIAlertAction actionWithTitle:@"保存" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
-    NSInteger n = a.textFields.firstObject.text.integerValue;
-    if (n < 500) { [self _toast:@"防火墙阈值最小 500"]; return; }
-    [self _beginBusy];
-    [self.client ipBlackSetFirewallCount:n completion:^(NSInteger value, NSError *error) {
-      [self _endBusy];
-      if (error) [self _toast:error.localizedDescription];
-      else [self _loadIpKind:2];
-    }];
-  }]];
-  [self presentViewController:a animated:YES completion:nil];
-}
-
-#pragma mark - Cert
-
-- (void)_issueClaim {
-  NSString *label = self.issueLabelField.text.length ? self.issueLabelField.text : @"新设备";
-  [self _beginBusy];
-  [self.client certIssueWithLabel:label completion:^(AutumnOpsClaimIssueResult *result, NSError *error) {
-    [self _endBusy];
-    if (error) { [self _toast:error.localizedDescription]; return; }
-    self.lastIssue = result;
-    self.claimHint.text = [NSString stringWithFormat:@"认领码（仅显示一次）：\n%@", result.claimSecret];
-    UIPasteboard.generalPasteboard.string = result.claimSecret;
-    [self _toast:@"认领码已复制"];
-    [self _refreshAll];
-  }];
-}
-
-- (void)_shareToChat {
-  AutumnOpsShareToChatBlock hook = AutumnOpsShareHooks.toChat;
-  if (!hook) {
-    [self _toast:@"宿主未注入分享钩子"];
-    return;
-  }
-  NSString *pass = self.passphraseField.text;
-  AutumnOpsValidateResult *vr = [AutumnOpsValidators sharePassphrase:pass];
-  if (!vr.ok) { [self _toast:vr.error]; return; }
-  NSError *err = nil;
-  NSString *wrapped = [self.client exportWrappedWithPassphrase:pass error:&err];
-  if (!wrapped) { [self _toast:err.localizedDescription]; return; }
-  AutumnOpsCredentialBundle *b = [self.client currentBundle:nil];
-  NSDictionary *content = [AutumnOpsPayload toMessageMapWithWrapped:wrapped
-                                                            baseUrl:self.client.baseUrl
-                                                             siteId:b.siteId
-                                                             certId:b.certId
-                                                 serverFingerprint:b.serverFingerprint
-                                                       createdAtMs:@((long long)([[NSDate date] timeIntervalSince1970] * 1000))];
-  hook(self, content, ^(BOOL ok) {
-    if (ok) [self _toast:@"已发送"];
-  });
-}
-
-- (void)_exportFile {
-  NSString *pass = self.passphraseField.text;
-  AutumnOpsValidateResult *vr = [AutumnOpsValidators sharePassphrase:pass];
-  if (!vr.ok) { [self _toast:vr.error]; return; }
-  NSError *err = nil;
-  NSString *wrapped = [self.client exportWrappedWithPassphrase:pass error:&err];
-  if (!wrapped) { [self _toast:err.localizedDescription]; return; }
-  AutumnOpsCredentialBundle *b = [self.client currentBundle:nil];
-  NSDictionary *map = [AutumnOpsPayload toMessageMapWithWrapped:wrapped
-                                                        baseUrl:self.client.baseUrl
-                                                         siteId:b.siteId
-                                                         certId:b.certId
-                                             serverFingerprint:b.serverFingerprint
-                                                   createdAtMs:@((long long)([[NSDate date] timeIntervalSince1970] * 1000))];
-  NSData *data = [NSJSONSerialization dataWithJSONObject:map options:NSJSONWritingPrettyPrinted error:nil];
-  NSURL *tmp = [NSURL fileURLWithPath:[NSTemporaryDirectory() stringByAppendingPathComponent:[NSString stringWithFormat:@"ops-%@.%@", b.certId ?: @"cred", [AutumnOpsPayload fileExtension]]]];
-  [data writeToURL:tmp atomically:YES];
-  UIActivityViewController *av = [[UIActivityViewController alloc] initWithActivityItems:@[tmp] applicationActivities:nil];
-  av.popoverPresentationController.sourceView = self.view;
-  [self presentViewController:av animated:YES completion:nil];
-}
-
-- (void)_clearLocal {
-  [self _confirm:@"清除本机凭证" body:@"仅删除本机密钥，不吊销服务端证书。清除后需重新导入或入驻。" ok:^{
-    [self _markSiteUnenrolledAndClear];
-    AutumnOpsRecoveryViewController *vc = [[AutumnOpsRecoveryViewController alloc] initWithSiteTitle:self.siteEntry.title baseUrl:self.client.baseUrl];
-    NSMutableArray *stack = [(self.navigationController.viewControllers ?: @[]) mutableCopy];
-    if (stack.count) [stack removeLastObject];
-    [stack addObject:vc];
-    [self.navigationController setViewControllers:stack animated:YES];
-  }];
-}
-
-#pragma mark - Table
-
-- (NSInteger)_kindForTable:(UITableView *)table {
-  if (table == self.adminTable) return 0;
-  if (table == self.whiteTable) return 1;
-  if (table == self.blackTable) return 2;
-  if (table == self.certTable) return 3;
-  return -1;
-}
-
-- (NSArray *)_rowsForKind:(NSInteger)kind {
-  if (kind == 0) return self.adminRows;
-  if (kind == 1) return self.whiteRows;
-  if (kind == 2) return self.blackRows;
-  return self.certs;
-}
-
-- (NSInteger)tableView:(UITableView *)tableView numberOfRowsInSection:(NSInteger)section {
-  return [self _rowsForKind:[self _kindForTable:tableView]].count;
-}
-
-- (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath {
-  UITableViewCell *cell = [tableView dequeueReusableCellWithIdentifier:@"row" forIndexPath:indexPath];
-  cell.textLabel.numberOfLines = 0;
-  cell.accessoryType = UITableViewCellAccessoryNone;
-  NSInteger kind = [self _kindForTable:tableView];
-  if (kind == 3) {
-    NSDictionary *c = self.certs[indexPath.row];
-    BOOL revoked = [c[@"revoked"] boolValue];
-    cell.textLabel.text = [NSString stringWithFormat:@"%@\n%@%@",
-                           c[@"certId"] ?: @"-",
-                           c[@"label"] ?: @"",
-                           revoked ? @" · 已吊销" : @" · 有效"];
-    cell.textLabel.textColor = revoked ? UIColor.secondaryLabelColor : UIColor.labelColor;
-  } else {
-    AutumnOpsIpRow *r = [self _rowsForKind:kind][indexPath.row];
-    NSString *extra = @"";
-    if (kind == 2) extra = [NSString stringWithFormat:@" available=%@", r.available ?: @"-"];
-    else if (r.forbidden) extra = [r.forbidden boolValue] ? @" · 禁用" : @" · 启用";
-    cell.textLabel.text = [NSString stringWithFormat:@"%@%@", r.ip, extra];
-  }
-  return cell;
-}
-
-- (UISwipeActionsConfiguration *)tableView:(UITableView *)tableView trailingSwipeActionsConfigurationForRowAtIndexPath:(NSIndexPath *)indexPath {
-  NSInteger kind = [self _kindForTable:tableView];
-  if (kind < 0) return nil;
-  __weak typeof(self) weakSelf = self;
-  if (kind == 3) {
-    NSDictionary *c = self.certs[indexPath.row];
-    if ([c[@"revoked"] boolValue]) return nil;
-    NSString *cid = [NSString stringWithFormat:@"%@", c[@"certId"] ?: @""];
-    UIContextualAction *rev = [UIContextualAction contextualActionWithStyle:UIContextualActionStyleDestructive title:@"吊销" handler:^(__kindof UIContextualAction *action, __kindof UIView *sourceView, void (^completionHandler)(BOOL)) {
-      [weakSelf _confirm:@"吊销证书" body:[NSString stringWithFormat:@"吊销 %@？若为最后一张有效证需走恢复流程。", cid] ok:^{
-        [weakSelf _beginBusy];
-        [weakSelf.client certRevoke:cid completion:^(AutumnOpsRevokeResult *result, NSError *error) {
-          [weakSelf _endBusy];
-          if (error) [weakSelf _toast:error.localizedDescription];
-          else {
-            if (result.lastCert) {
-              [weakSelf _markSiteUnenrolledAndClear];
-              AutumnOpsRecoveryViewController *vc = [[AutumnOpsRecoveryViewController alloc] initWithSiteTitle:weakSelf.siteEntry.title baseUrl:weakSelf.client.baseUrl];
-              NSMutableArray *stack = [(weakSelf.navigationController.viewControllers ?: @[]) mutableCopy];
-              if (stack.count) [stack removeLastObject];
-              [stack addObject:vc];
-              [weakSelf.navigationController setViewControllers:stack animated:YES];
-            } else {
-              [weakSelf _refreshAll];
-            }
-          }
-        }];
-      }];
-      completionHandler(YES);
-    }];
-    return [UISwipeActionsConfiguration configurationWithActions:@[rev]];
-  }
-  AutumnOpsIpRow *row = [self _rowsForKind:kind][indexPath.row];
-  UIContextualAction *del = [UIContextualAction contextualActionWithStyle:UIContextualActionStyleDestructive title:@"删除" handler:^(__kindof UIContextualAction *action, __kindof UIView *sourceView, void (^completionHandler)(BOOL)) {
-    void (^doRemove)(NSString *) = ^(NSString *tok) {
-      [weakSelf _beginBusy];
-      AutumnOpsDictBlock done = ^(NSDictionary *data, NSError *error) {
-        [weakSelf _endBusy];
-        if (error) [weakSelf _toast:error.localizedDescription];
-        else [weakSelf _loadIpKind:kind];
-      };
-      if (kind == 0) [weakSelf.client adminIpRemove:row.ip clearToken:tok completion:done];
-      else if (kind == 1) [weakSelf.client ipWhiteRemove:row.ip clearToken:tok completion:done];
-      else [weakSelf.client ipBlackRemove:row.ip completion:done];
-    };
-    if (kind == 0 || kind == 1) {
-      NSString *tok = [weakSelf _readyClearTokenOrNil];
-      if ([row.ip isEqualToString:weakSelf.currentIp] && !tok.length) {
-        [weakSelf _toast:@"删除当前访问 IP 需先校验清除确认令牌（概览页）"];
-        completionHandler(NO);
-        return;
-      }
-      doRemove(tok);
-    } else {
-      doRemove(nil);
-    }
-    completionHandler(YES);
-  }];
-  return [UISwipeActionsConfiguration configurationWithActions:@[del]];
-}
-
-- (void)tableView:(UITableView *)tableView didSelectRowAtIndexPath:(NSIndexPath *)indexPath {
-  [tableView deselectRowAtIndexPath:indexPath animated:YES];
-  NSInteger kind = [self _kindForTable:tableView];
-  if (kind == 0 || kind == 1) {
-    AutumnOpsIpRow *row = [self _rowsForKind:kind][indexPath.row];
-    BOOL next = !(row.forbidden.boolValue);
-    [self _beginBusy];
-    AutumnOpsDictBlock done = ^(NSDictionary *data, NSError *error) {
-      [self _endBusy];
-      if (error) [self _toast:error.localizedDescription];
-      else [self _loadIpKind:kind];
-    };
-    if (kind == 0) [self.client adminIpSetForbidden:row.ip forbidden:next completion:done];
-    else [self.client ipWhiteSetForbidden:row.ip forbidden:next completion:done];
-  } else if (kind == 2) {
-    AutumnOpsIpRow *row = [self _rowsForKind:kind][indexPath.row];
-    NSInteger next = row.available.integerValue == 0 ? 1 : 0;
-    [self _beginBusy];
-    [self.client ipBlackSetAvailable:row.ip available:next completion:^(NSDictionary *data, NSError *error) {
-      [self _endBusy];
-      if (error) [self _toast:error.localizedDescription];
-      else [self _loadIpKind:2];
-    }];
   }
 }
 

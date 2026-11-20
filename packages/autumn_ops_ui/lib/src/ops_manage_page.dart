@@ -1293,53 +1293,49 @@ class _OpsManageSitePageState extends State<OpsManageSitePage>
                 final revoked = row['revoked'] == true;
                 final self = row['self'] == true ||
                     (site.certId != null && site.certId == '${row['certId']}');
-                return Card(
-                  elevation: 0,
-                  margin: const EdgeInsets.only(bottom: 8),
-                  color: scheme.surface.withValues(alpha: 0.5),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  child: ListTile(
-                    title: Text('${row['label'] ?? row['certId']}'),
-                    subtitle: Text(
-                      '${self ? '本机 · ' : '其他设备 · '}'
-                      '证书标识 ${row['certId']}'
-                      '${revoked ? ' · 已吊销' : ''}',
-                    ),
-                    trailing: revoked
-                        ? const Chip(label: Text('已吊销'), visualDensity: VisualDensity.compact)
-                        : IconButton(
-                            icon: const Icon(Icons.block),
-                            tooltip: '吊销',
-                            onPressed: _busy
-                                ? null
-                                : () async {
-                                    final id = '${row['certId']}';
-                                    final lastOne = _activeCount <= 1;
-                                    final ok = await _confirm(
-                                      lastOne ? '吊销最后一张有效证书' : '吊销证书',
-                                      lastOne
-                                          ? '这是最后一张有效证。吊销后所有运维设备将无法登录证书通道，只能通过防火墙/数据库重置恢复。确定吊销？'
-                                          : '确定吊销 $id？该设备将无法再建运维会话。',
-                                    );
-                                    if (!ok) return;
-                                    await _run(() async {
-                                      final c = await _client();
-                                      final r = await c!.certRevoke(id);
-                                      if (r.lastCert) {
-                                        _toast('已吊销最后一张有效证');
-                                        await _store!.credentialStoreFor(site).clear();
-                                        site.enrolled = false;
-                                        site.certId = null;
-                                        await _store!.upsertSite(site);
-                                        if (mounted) await _openRecovery();
-                                      } else {
-                                        _toast('已吊销');
-                                        await _refreshRemote();
-                                      }
-                                    });
-                                  },
-                          ),
-                  ),
+                final id = '${row['certId']}';
+                final title = '${row['label'] ?? id}';
+                return OpsRuleRowChrome(
+                  title: title,
+                  subtitle: '${self ? '本机 · ' : '其他设备 · '}证书标识 $id${revoked ? ' · 已吊销' : ''}',
+                  active: !revoked && self,
+                  statusLabel: revoked ? '已吊销' : (self ? '本机' : '有效'),
+                  titleMonospace: false,
+                  highlightedBorder: self && !revoked,
+                  actions: [
+                    if (!revoked)
+                      TextButton(
+                        onPressed: _busy
+                            ? null
+                            : () async {
+                                final lastOne = _activeCount <= 1;
+                                final ok = await _confirm(
+                                  lastOne ? '吊销最后一张有效证书' : '吊销证书',
+                                  lastOne
+                                      ? '这是最后一张有效证。吊销后所有运维设备将无法登录证书通道，只能通过防火墙/数据库重置恢复。确定吊销？'
+                                      : '确定吊销 $id？该设备将无法再建运维会话。',
+                                );
+                                if (!ok) return;
+                                await _run(() async {
+                                  final c = await _client();
+                                  final r = await c!.certRevoke(id);
+                                  if (r.lastCert) {
+                                    _toast('已吊销最后一张有效证');
+                                    await _store!.credentialStoreFor(site).clear();
+                                    site.enrolled = false;
+                                    site.certId = null;
+                                    await _store!.upsertSite(site);
+                                    if (mounted) await _openRecovery();
+                                  } else {
+                                    _toast('已吊销');
+                                    await _refreshRemote();
+                                  }
+                                });
+                              },
+                        style: TextButton.styleFrom(foregroundColor: scheme.error),
+                        child: const Text('吊销'),
+                      ),
+                  ],
                 );
               }),
           ],

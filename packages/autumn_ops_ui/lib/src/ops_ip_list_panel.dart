@@ -2,6 +2,8 @@ import 'package:autumn_ops/autumn_ops.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'ops_chrome.dart';
+
 /// IP 列表状态字段语义。
 enum OpsIpStatusMode {
   /// 白名单类：`forbidden` 0 启用 / 1 禁用。
@@ -367,41 +369,14 @@ class _OpsIpListPanelState extends State<OpsIpListPanel> {
     );
   }
 
-  Widget _buildCountBar(ColorScheme scheme) {
-    final loaded = _rows.length;
-    final total = _count;
-    final text = total <= 0
-        ? '暂无记录'
-        : loaded >= total
-            ? '共 $total 条'
-            : '已加载 $loaded / 共 $total';
-    return Row(
-      children: [
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-          decoration: BoxDecoration(
-            color: scheme.surfaceContainerHighest.withValues(alpha: 0.7),
-            borderRadius: BorderRadius.circular(20),
-          ),
-          child: Text(
-            text,
-            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: scheme.onSurfaceVariant),
-          ),
-        ),
-        const Spacer(),
-        if (_hasMore && !_loading && _rows.isNotEmpty)
-          TextButton(
-            onPressed: widget.busy || _loadingMore ? null : _loadMore,
-            style: TextButton.styleFrom(
-              visualDensity: VisualDensity.compact,
-              padding: const EdgeInsets.symmetric(horizontal: 8),
-            ),
-            child: Text(
-              _loadingMore ? '加载中…' : '加载更多',
-              style: const TextStyle(fontSize: 12),
-            ),
-          ),
-      ],
+  Widget _buildCountBar() {
+    return OpsCountChipBar(
+      loaded: _rows.length,
+      total: _count,
+      hasMore: _hasMore && !_loading && _rows.isNotEmpty,
+      loadingMore: _loadingMore,
+      onLoadMore: (widget.busy || _loadingMore) ? null : _loadMore,
+      emptyLabel: '暂无记录',
     );
   }
 
@@ -454,7 +429,7 @@ class _OpsIpListPanelState extends State<OpsIpListPanel> {
             ),
           ],
           const SizedBox(height: 12),
-          _buildCountBar(scheme),
+          _buildCountBar(),
           const SizedBox(height: 8),
           if (_loading && _rows.isEmpty)
             const Padding(
@@ -519,188 +494,67 @@ class _OpsIpListPanelState extends State<OpsIpListPanel> {
     final active = _isActive(row);
     final isCurrent = widget.currentIp.isNotEmpty && row.ip == widget.currentIp;
     final time = _formatTime(row.createTimeMs);
-    final meta = <String>[
+    final detailParts = <String>[
       if ((row.tag ?? '').trim().isNotEmpty) row.tag!.trim(),
       if ((row.description ?? '').trim().isNotEmpty) row.description!.trim(),
-      if (time.isNotEmpty) time,
     ];
-
-    final statusColor = active ? scheme.tertiary : scheme.outline;
-    final statusBg = active
-        ? scheme.tertiaryContainer.withValues(alpha: 0.55)
-        : scheme.surfaceContainerHighest.withValues(alpha: 0.9);
-
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Material(
-        color: scheme.surface,
-        elevation: 0,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-          side: BorderSide(
-            color: isCurrent
-                ? scheme.primary.withValues(alpha: 0.45)
-                : scheme.outlineVariant.withValues(alpha: 0.8),
+    final detail = detailParts.isEmpty ? null : detailParts.join(' · ');
+    final toggleLabel = _toggleActionLabel(row);
+    Widget iconBtn({
+      required String tooltip,
+      required IconData icon,
+      required Color color,
+      required VoidCallback? onPressed,
+    }) {
+      return SizedBox(
+        width: OpsRuleRowChrome.actionSlotWidth,
+        height: OpsRuleRowChrome.actionSlotWidth,
+        child: IconButton(
+          tooltip: tooltip,
+          onPressed: onPressed,
+          padding: EdgeInsets.zero,
+          alignment: Alignment.center,
+          style: IconButton.styleFrom(
+            padding: EdgeInsets.zero,
+            minimumSize: const Size(
+              OpsRuleRowChrome.actionSlotWidth,
+              OpsRuleRowChrome.actionSlotWidth,
+            ),
+            maximumSize: const Size(
+              OpsRuleRowChrome.actionSlotWidth,
+              OpsRuleRowChrome.actionSlotWidth,
+            ),
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            visualDensity: VisualDensity.compact,
           ),
+          icon: Icon(icon, size: OpsRuleRowChrome.actionIconSize, color: color),
         ),
-        clipBehavior: Clip.antiAlias,
-        child: IntrinsicHeight(
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Container(
-                width: 4,
-                color: active ? scheme.tertiary : scheme.outlineVariant,
-              ),
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(12, 10, 4, 10),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Expanded(
-                            child: SelectableText(
-                              row.ip,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w600,
-                                fontSize: 15,
-                                fontFamily: 'monospace',
-                                height: 1.25,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 6),
-                          _StatusPill(
-                            label: _statusLabel(row),
-                            foreground: active ? scheme.onTertiaryContainer : scheme.onSurfaceVariant,
-                            background: statusBg,
-                            dotColor: statusColor,
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 6),
-                      Wrap(
-                        spacing: 6,
-                        runSpacing: 4,
-                        crossAxisAlignment: WrapCrossAlignment.center,
-                        children: [
-                          if (isCurrent)
-                            _MetaChip(
-                              label: '本机访问',
-                              color: scheme.primary,
-                              background: scheme.primaryContainer.withValues(alpha: 0.4),
-                            ),
-                          ...meta.map(
-                            (m) => Text(
-                              m,
-                              style: TextStyle(fontSize: 12, height: 1.2, color: scheme.onSurfaceVariant),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  IconButton(
-                    tooltip: _toggleActionLabel(row),
-                    visualDensity: VisualDensity.compact,
-                    onPressed: widget.busy ? null : () => _toggle(row),
-                    icon: Icon(
-                      active ? Icons.pause_circle_outline : Icons.play_circle_outline,
-                      size: 22,
-                      color: scheme.onSurfaceVariant,
-                    ),
-                  ),
-                  IconButton(
-                    tooltip: '删除',
-                    visualDensity: VisualDensity.compact,
-                    onPressed: widget.busy ? null : () => _remove(row),
-                    icon: Icon(
-                      Icons.delete_outline,
-                      size: 22,
-                      color: scheme.error.withValues(alpha: 0.85),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(width: 2),
-            ],
-          ),
-        ),
+      );
+    }
+
+    return OpsRuleRowChrome(
+      title: row.ip,
+      detail: detail,
+      dateLine: time.isEmpty ? null : time,
+      active: active,
+      statusLabel: _statusLabel(row),
+      titleMonospace: true,
+      highlightedBorder: isCurrent,
+      meta: [
+        if (isCurrent) const OpsMetaChip(label: '本机'),
+      ],
+      // 启停在 IP 行与胶囊垂直居中；删除在同列下方
+      primaryAction: iconBtn(
+        tooltip: toggleLabel,
+        icon: active ? Icons.pause_circle_outline : Icons.play_circle_outline,
+        color: scheme.onSurfaceVariant,
+        onPressed: widget.busy ? null : () => _toggle(row),
       ),
-    );
-  }
-}
-
-class _StatusPill extends StatelessWidget {
-  const _StatusPill({
-    required this.label,
-    required this.foreground,
-    required this.background,
-    required this.dotColor,
-  });
-
-  final String label;
-  final Color foreground;
-  final Color background;
-  final Color dotColor;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(
-        color: background,
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 6,
-            height: 6,
-            decoration: BoxDecoration(color: dotColor, shape: BoxShape.circle),
-          ),
-          const SizedBox(width: 5),
-          Text(
-            label,
-            style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: foreground),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _MetaChip extends StatelessWidget {
-  const _MetaChip({
-    required this.label,
-    required this.color,
-    required this.background,
-  });
-
-  final String label;
-  final Color color;
-  final Color background;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-      decoration: BoxDecoration(
-        color: background,
-        borderRadius: BorderRadius.circular(6),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: color),
+      trailingAction: iconBtn(
+        tooltip: '删除',
+        icon: Icons.delete_outline,
+        color: scheme.error.withValues(alpha: 0.85),
+        onPressed: widget.busy ? null : () => _remove(row),
       ),
     );
   }

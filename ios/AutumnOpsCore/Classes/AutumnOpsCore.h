@@ -15,3 +15,4 @@ FOUNDATION_EXPORT const unsigned char AutumnOpsCoreVersionString[];
 #import "AutumnOpsValidators.h"
 #import "AutumnOpsEndpoint.h"
 #import "AutumnOpsClient.h"
+#import "AutumnOpsRuntimeModels.h"

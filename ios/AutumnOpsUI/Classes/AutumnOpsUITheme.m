@@ -16,10 +16,13 @@
 + (UIColor *)cardFill { return [self rgb:0xEFEFF5]; }
 + (UIColor *)onSurface { return [self rgb:0x191C20]; }
 + (UIColor *)onSurfaceVariant { return [self rgb:0x44474E]; }
++ (UIColor *)secondary { return [self rgb:0x545F71]; }
 + (UIColor *)secondaryContainer { return [self rgb:0xDAE2F9]; }
 + (UIColor *)onSecondaryContainer { return [self rgb:0x3E4758]; }
++ (UIColor *)tertiary { return [self rgb:0x6B5778]; }
 + (UIColor *)chipOnFill { return [self rgb:0xE3E9FB]; }
 + (UIColor *)chipOffFill { return [self rgb:0xFCEBED]; }
++ (UIColor *)error { return [self rgb:0xBA1A1A]; }
 + (UIColor *)errorContainer { return [self rgb:0xFFDAD6]; }
 + (UIColor *)onErrorContainer { return [self rgb:0x93000A]; }
 + (UIColor *)outline { return [self rgb:0x74777F]; }

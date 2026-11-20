@@ -1,5 +1,6 @@
 #import "AutumnOpsSitesViewController.h"
 #import "AutumnOpsAddSiteViewController.h"
+#import "AutumnOpsConfirmPresenter.h"
 #import "AutumnOpsManageViewController.h"
 #import "AutumnOpsPageChromeView.h"
 #import "AutumnOpsSiteListCell.h"
@@ -118,16 +119,15 @@ static NSString * const kSiteCellId = @"AutumnOpsSiteListCell";
 
 - (void)_confirmDelete:(AutumnOpsSiteEntry *)site {
   NSString *name = site.title.length ? site.title : (site.baseUrl ?: @"");
-  UIAlertController *a = [UIAlertController alertControllerWithTitle:@"删除站点"
-                                                             message:[NSString stringWithFormat:@"从本机列表移除「%@」？不会自动吊销服务端证书。", name]
-                                                      preferredStyle:UIAlertControllerStyleAlert];
-  [a addAction:[UIAlertAction actionWithTitle:@"取消" style:UIAlertActionStyleCancel handler:nil]];
   __weak typeof(self) weakSelf = self;
-  [a addAction:[UIAlertAction actionWithTitle:@"删除" style:UIAlertActionStyleDestructive handler:^(UIAlertAction *action) {
+  [AutumnOpsConfirmPresenter presentFrom:self
+                                   title:@"删除站点"
+                                    body:[NSString stringWithFormat:@"从本机列表移除「%@」？不会自动吊销服务端证书。", name]
+                             destructive:YES
+                               onConfirm:^{
     [weakSelf.siteStore removeSiteId:site.id error:nil];
     [weakSelf _reload];
-  }]];
-  [self presentViewController:a animated:YES completion:nil];
+  }];
 }
 
 #pragma mark - Table

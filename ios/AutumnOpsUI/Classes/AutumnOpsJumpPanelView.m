@@ -1,17 +1,36 @@
 #import "AutumnOpsJumpPanelView.h"
+#import "AutumnOpsCountChipBarView.h"
+#import "AutumnOpsConfirmPresenter.h"
+#import "AutumnOpsJumpEditorController.h"
+#import "AutumnOpsKeyboardDismissHelper.h"
+#import "AutumnOpsRuleRowChromeView.h"
+#import "AutumnOpsUIControls.h"
+#import "AutumnOpsUITheme.h"
 #import <AutumnOpsCore/AutumnOpsCore.h>
 #import <Masonry/Masonry.h>
+#import <objc/runtime.h>
 
-@interface AutumnOpsJumpPanelView () <UITableViewDataSource, UITableViewDelegate>
+static const NSInteger kJumpLimit = 50;
+static const void *kJumpRowIdKey = &kJumpRowIdKey;
+static const void *kJumpRowDictKey = &kJumpRowDictKey;
+
+@interface AutumnOpsJumpPanelView ()
 @property (nonatomic, strong) AutumnOpsClient *client;
 @property (nonatomic, copy) AutumnOpsPanelToast toast;
 @property (nonatomic, copy) AutumnOpsPanelBusy setBusy;
 @property (nonatomic, strong) UIScrollView *scroll;
-@property (nonatomic, strong) UIView *content;
-@property (nonatomic, strong) UILabel *countChip;
-@property (nonatomic, strong) UITableView *table;
-@property (nonatomic, copy) NSArray<NSDictionary *> *rows;
+@property (nonatomic, strong) UIStackView *rootStack;
+@property (nonatomic, strong) AutumnOpsCountChipBarView *countBar;
+@property (nonatomic, strong) UIStackView *rowsStack;
+@property (nonatomic, strong) UILabel *errorLabel;
+@property (nonatomic, strong) UILabel *emptyLabel;
+@property (nonatomic, strong) UIActivityIndicatorView *loadingSpin;
+@property (nonatomic, strong) NSMutableArray<NSDictionary *> *rows;
+@property (nonatomic) NSInteger page;
 @property (nonatomic) NSInteger totalCount;
+@property (nonatomic) BOOL hasMore;
+@property (nonatomic) BOOL loading;
+@property (nonatomic) BOOL loadingMore;
 @end
 
 @implementation AutumnOpsJumpPanelView
@@ -24,7 +43,7 @@
     _client = client;
     _toast = [toast copy];
     _setBusy = [setBusy copy];
-    _rows = @[];
+    _rows = [NSMutableArray array];
     [self _build];
   }
   return self;
@@ -40,261 +59,301 @@
 }
 
 - (void)_build {
-  self.backgroundColor = UIColor.systemGroupedBackgroundColor;
+  self.backgroundColor = UIColor.clearColor;
   _scroll = [UIScrollView new];
   _scroll.alwaysBounceVertical = YES;
   UIRefreshControl *rc = [UIRefreshControl new];
   [rc addTarget:self action:@selector(reload) forControlEvents:UIControlEventValueChanged];
   _scroll.refreshControl = rc;
-  _content = [UIView new];
   [self addSubview:_scroll];
-  [_scroll addSubview:_content];
   [_scroll mas_makeConstraints:^(MASConstraintMaker *make) { make.edges.equalTo(self); }];
-  [_content mas_makeConstraints:^(MASConstraintMaker *make) {
-    make.edges.equalTo(_scroll);
-    make.width.equalTo(_scroll);
+  [AutumnOpsKeyboardDismissHelper installOnScrollView:_scroll hostView:self];
+
+  _rootStack = [UIStackView new];
+  _rootStack.axis = UILayoutConstraintAxisVertical;
+  _rootStack.spacing = 12;
+  [_scroll addSubview:_rootStack];
+  [_rootStack mas_makeConstraints:^(MASConstraintMaker *make) {
+    make.edges.equalTo(_scroll).insets(UIEdgeInsetsMake(12, 16, 28, 16));
+    make.width.equalTo(_scroll).offset(-32);
   }];
 
   UILabel *title = [UILabel new];
   title.text = @"防御跳转";
   title.font = [UIFont systemFontOfSize:17 weight:UIFontWeightBold];
+  title.textColor = AutumnOpsUITheme.onSurface;
   UILabel *desc = [UILabel new];
   desc.text = @"按域名与资源匹配后跳转到目标地址，与盾牌分表互不影响。";
   desc.numberOfLines = 0;
   desc.font = [UIFont systemFontOfSize:13];
-  desc.textColor = UIColor.secondaryLabelColor;
-  UIButton *add = [UIButton buttonWithType:UIButtonTypeSystem];
-  [add setTitle:@"添加" forState:UIControlStateNormal];
-  add.titleLabel.font = [UIFont systemFontOfSize:15 weight:UIFontWeightSemibold];
-  add.backgroundColor = [UIColor.systemBlueColor colorWithAlphaComponent:0.12];
-  add.layer.cornerRadius = 10;
-  add.contentEdgeInsets = UIEdgeInsetsMake(8, 14, 8, 14);
-  [add addTarget:self action:@selector(_add) forControlEvents:UIControlEventTouchUpInside];
-  UIStackView *headerRight = [[UIStackView alloc] initWithArrangedSubviews:@[add]];
-  UIStackView *headerLeft = [[UIStackView alloc] initWithArrangedSubviews:@[title, desc]];
+  desc.textColor = AutumnOpsUITheme.onSurfaceVariant;
+  UIStackView *headerLeft = [[UIStackView alloc] initWithArrangedSubviews:@[ title, desc ]];
   headerLeft.axis = UILayoutConstraintAxisVertical;
   headerLeft.spacing = 4;
-  UIStackView *header = [[UIStackView alloc] initWithArrangedSubviews:@[headerLeft, headerRight]];
+  UIButton *add = [AutumnOpsUIControls buttonWithTitle:@"添加"
+                                                 style:AutumnOpsButtonStyleTonal
+                                                target:self
+                                                action:@selector(_add)];
+  UIStackView *header = [[UIStackView alloc] initWithArrangedSubviews:@[ headerLeft, add ]];
   header.axis = UILayoutConstraintAxisHorizontal;
   header.alignment = UIStackViewAlignmentTop;
   header.spacing = 8;
   [headerLeft setContentHuggingPriority:UILayoutPriorityDefaultLow forAxis:UILayoutConstraintAxisHorizontal];
+  [_rootStack addArrangedSubview:header];
 
-  _countChip = [UILabel new];
-  _countChip.font = [UIFont systemFontOfSize:12 weight:UIFontWeightMedium];
-  _countChip.textColor = UIColor.secondaryLabelColor;
-  _countChip.backgroundColor = [UIColor.tertiarySystemFillColor colorWithAlphaComponent:0.9];
-  _countChip.layer.cornerRadius = 10;
-  _countChip.clipsToBounds = YES;
-  _countChip.text = @"  暂无规则  ";
+  _countBar = [AutumnOpsCountChipBarView new];
+  __weak typeof(self) weakSelf = self;
+  _countBar.onLoadMore = ^{ [weakSelf _loadMore]; };
+  [_rootStack addArrangedSubview:_countBar];
 
-  _table = [[UITableView alloc] initWithFrame:CGRectZero style:UITableViewStylePlain];
-  _table.dataSource = self;
-  _table.delegate = self;
-  _table.scrollEnabled = NO;
-  _table.separatorStyle = UITableViewCellSeparatorStyleNone;
-  _table.backgroundColor = UIColor.clearColor;
-  [_table registerClass:UITableViewCell.class forCellReuseIdentifier:@"rule"];
+  _loadingSpin = [[UIActivityIndicatorView alloc] initWithActivityIndicatorStyle:UIActivityIndicatorViewStyleMedium];
+  _loadingSpin.hidesWhenStopped = YES;
+  [_rootStack addArrangedSubview:_loadingSpin];
 
-  UIStackView *root = [[UIStackView alloc] initWithArrangedSubviews:@[header, _countChip, _table]];
-  root.axis = UILayoutConstraintAxisVertical;
-  root.spacing = 12;
-  [_content addSubview:root];
-  [root mas_makeConstraints:^(MASConstraintMaker *make) {
-    make.edges.equalTo(_content).insets(UIEdgeInsetsMake(12, 16, 28, 16));
-  }];
-  [_table mas_makeConstraints:^(MASConstraintMaker *make) {
-    make.height.mas_equalTo(1).priorityLow();
-  }];
+  _errorLabel = [UILabel new];
+  _errorLabel.numberOfLines = 0;
+  _errorLabel.font = [UIFont systemFontOfSize:13];
+  _errorLabel.textColor = AutumnOpsUITheme.error;
+  _errorLabel.textAlignment = NSTextAlignmentCenter;
+  _errorLabel.hidden = YES;
+  [_rootStack addArrangedSubview:_errorLabel];
+
+  UIButton *retry = [AutumnOpsUIControls buttonWithTitle:@"重试"
+                                                   style:AutumnOpsButtonStyleOutlined
+                                                  target:self
+                                                  action:@selector(reload)];
+  retry.tag = 802;
+  retry.hidden = YES;
+  [_rootStack addArrangedSubview:retry];
+
+  _emptyLabel = [UILabel new];
+  _emptyLabel.text = @"暂无跳转规则，点右上角添加";
+  _emptyLabel.font = [UIFont systemFontOfSize:14];
+  _emptyLabel.textColor = AutumnOpsUITheme.onSurfaceVariant;
+  _emptyLabel.textAlignment = NSTextAlignmentCenter;
+  _emptyLabel.hidden = YES;
+  [_rootStack addArrangedSubview:_emptyLabel];
+
+  _rowsStack = [UIStackView new];
+  _rowsStack.axis = UILayoutConstraintAxisVertical;
+  _rowsStack.spacing = 0;
+  [_rootStack addArrangedSubview:_rowsStack];
+}
+
+- (BOOL)_pageHasMore:(NSDictionary *)page pageNum:(NSInteger)pageNum {
+  if (page[@"hasMore"] != nil) return [page[@"hasMore"] boolValue];
+  NSInteger count = [page[@"count"] respondsToSelector:@selector(integerValue)] ? [page[@"count"] integerValue] : 0;
+  return pageNum * kJumpLimit < count;
 }
 
 - (void)reload {
-  self.setBusy(YES);
-  [self.client jumpListPage:1 limit:100 completion:^(NSDictionary *page, NSError *error) {
-    self.setBusy(NO);
-    [self.scroll.refreshControl endRefreshing];
+  if (self.loading) return;
+  self.loading = YES;
+  self.errorLabel.hidden = YES;
+  [self viewWithTag:802].hidden = YES;
+  if (self.rows.count == 0) [self.loadingSpin startAnimating];
+  if (self.setBusy) self.setBusy(YES);
+  __weak typeof(self) weakSelf = self;
+  [self.client ensureSession:^(NSError *sessErr) {
+    if (sessErr) {
+      [weakSelf _reloadFailed:sessErr.localizedDescription];
+      return;
+    }
+    [weakSelf.client jumpListPage:1 limit:kJumpLimit completion:^(NSDictionary *page, NSError *error) {
+      [weakSelf _finishReloadPage:page error:error];
+    }];
+  }];
+}
+
+- (void)_reloadFailed:(NSString *)msg {
+  self.loading = NO;
+  if (self.setBusy) self.setBusy(NO);
+  [self.loadingSpin stopAnimating];
+  if (self.scroll.refreshControl.refreshing) [self.scroll.refreshControl endRefreshing];
+  self.errorLabel.text = [NSString stringWithFormat:@"加载失败：%@", msg ?: @"未知错误"];
+  self.errorLabel.hidden = self.rows.count > 0;
+  [self viewWithTag:802].hidden = self.rows.count > 0;
+  if (self.toast && self.rows.count > 0) self.toast(msg);
+  [self _refreshCountBar];
+}
+
+- (void)_finishReloadPage:(NSDictionary *)page error:(NSError *)error {
+  self.loading = NO;
+  if (self.setBusy) self.setBusy(NO);
+  [self.loadingSpin stopAnimating];
+  if (self.scroll.refreshControl.refreshing) [self.scroll.refreshControl endRefreshing];
+  if (error) {
+    [self _reloadFailed:error.localizedDescription];
+    return;
+  }
+  NSArray *list = [page[@"list"] isKindOfClass:[NSArray class]] ? page[@"list"] : @[];
+  [self.rows removeAllObjects];
+  for (id o in list) if ([o isKindOfClass:[NSDictionary class]]) [self.rows addObject:o];
+  self.page = [page[@"page"] respondsToSelector:@selector(integerValue)] ? [page[@"page"] integerValue] : 1;
+  if (self.page <= 0) self.page = 1;
+  self.totalCount = [page[@"count"] respondsToSelector:@selector(integerValue)] ? [page[@"count"] integerValue] : self.rows.count;
+  self.hasMore = [self _pageHasMore:page pageNum:self.page];
+  self.errorLabel.hidden = YES;
+  [self viewWithTag:802].hidden = YES;
+  [self _rebuildRows];
+}
+
+- (void)_loadMore {
+  if (self.loading || self.loadingMore || !self.hasMore) return;
+  self.loadingMore = YES;
+  [self _refreshCountBar];
+  NSInteger next = self.page + 1;
+  __weak typeof(self) weakSelf = self;
+  [self.client jumpListPage:next limit:kJumpLimit completion:^(NSDictionary *page, NSError *error) {
+    weakSelf.loadingMore = NO;
     if (error) {
-      self.toast(error.localizedDescription);
+      if (weakSelf.toast) weakSelf.toast(error.localizedDescription);
+      [weakSelf _refreshCountBar];
       return;
     }
     NSArray *list = [page[@"list"] isKindOfClass:[NSArray class]] ? page[@"list"] : @[];
-    NSMutableArray *rows = [NSMutableArray array];
-    for (id o in list) if ([o isKindOfClass:[NSDictionary class]]) [rows addObject:o];
-    self.rows = rows;
-    self.totalCount = [page[@"count"] respondsToSelector:@selector(integerValue)] ? [page[@"count"] integerValue] : rows.count;
-    self.countChip.text = self.totalCount <= 0 ? @"  暂无规则  " : [NSString stringWithFormat:@"  共 %ld 条  ", (long)self.totalCount];
-    [self.table reloadData];
-    [self.table layoutIfNeeded];
-    CGFloat h = MAX(1, self.table.contentSize.height);
-    [self.table mas_updateConstraints:^(MASConstraintMaker *make) {
-      make.height.mas_equalTo(h);
-    }];
+    for (id o in list) if ([o isKindOfClass:[NSDictionary class]]) [weakSelf.rows addObject:o];
+    weakSelf.page = [page[@"page"] respondsToSelector:@selector(integerValue)] ? [page[@"page"] integerValue] : next;
+    weakSelf.totalCount = [page[@"count"] respondsToSelector:@selector(integerValue)] ? [page[@"count"] integerValue] : weakSelf.totalCount;
+    weakSelf.hasMore = [weakSelf _pageHasMore:page pageNum:weakSelf.page];
+    [weakSelf _rebuildRows];
   }];
+}
+
+- (void)_refreshCountBar {
+  [self.countBar configureLoaded:self.rows.count
+                           total:self.totalCount
+                         hasMore:self.hasMore && !self.loading
+                     loadingMore:self.loadingMore
+                      emptyLabel:@"暂无规则"];
+}
+
+- (void)_rebuildRows {
+  for (UIView *v in [self.rowsStack.arrangedSubviews copy]) {
+    [self.rowsStack removeArrangedSubview:v];
+    [v removeFromSuperview];
+  }
+  [self _refreshCountBar];
+  self.emptyLabel.hidden = self.rows.count > 0 || self.loading;
+  for (NSDictionary *row in self.rows) {
+    BOOL on = [row[@"enable"] boolValue];
+    NSString *host = [NSString stringWithFormat:@"%@", row[@"host"] ?: @""];
+    NSString *uri = [NSString stringWithFormat:@"%@", row[@"uri"] ?: @""];
+    NSString *url = [NSString stringWithFormat:@"%@", row[@"url"] ?: @""];
+    AutumnOpsRuleRowChromeView *chrome =
+        [[AutumnOpsRuleRowChromeView alloc] initWithTitle:[NSString stringWithFormat:@"%@%@", host, uri]
+                                                 subtitle:[NSString stringWithFormat:@"→ %@", url]
+                                                   active:on
+                                              statusLabel:on ? @"已开启" : @"已关闭"
+                                           titleMonospace:YES];
+    UIButton *edit = [AutumnOpsRuleRowChromeView textAction:@"编辑" target:self action:@selector(_editTap:)];
+    UIButton *toggle = [AutumnOpsRuleRowChromeView textAction:on ? @"关闭" : @"开启" target:self action:@selector(_toggle:)];
+    UIButton *del = [AutumnOpsRuleRowChromeView textAction:@"删除" target:self action:@selector(_delete:)];
+    objc_setAssociatedObject(edit, kJumpRowDictKey, row, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    objc_setAssociatedObject(toggle, kJumpRowDictKey, row, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    objc_setAssociatedObject(del, kJumpRowDictKey, row, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    [chrome setActionViews:@[ edit, toggle, del ]];
+    [self.rowsStack addArrangedSubview:chrome];
+  }
 }
 
 - (void)_add {
   [self _edit:nil];
 }
 
+- (void)_editTap:(UIButton *)sender {
+  NSDictionary *row = objc_getAssociatedObject(sender, kJumpRowDictKey);
+  [self _edit:row];
+}
+
 - (void)_edit:(NSDictionary *)existing {
-  UIAlertController *a = [UIAlertController alertControllerWithTitle:existing ? @"编辑跳转" : @"添加跳转" message:nil preferredStyle:UIAlertControllerStyleAlert];
-  [a addTextFieldWithConfigurationHandler:^(UITextField *tf) {
-    tf.placeholder = @"域名";
-    tf.text = existing[@"host"] ? [NSString stringWithFormat:@"%@", existing[@"host"]] : @"";
-    tf.autocapitalizationType = UITextAutocapitalizationTypeNone;
-  }];
-  [a addTextFieldWithConfigurationHandler:^(UITextField *tf) {
-    tf.placeholder = @"资源路径";
-    tf.text = existing[@"uri"] ? [NSString stringWithFormat:@"%@", existing[@"uri"]] : @"/";
-    tf.autocapitalizationType = UITextAutocapitalizationTypeNone;
-  }];
-  [a addTextFieldWithConfigurationHandler:^(UITextField *tf) {
-    tf.placeholder = @"跳转地址";
-    tf.text = existing[@"url"] ? [NSString stringWithFormat:@"%@", existing[@"url"]] : @"";
-    tf.autocapitalizationType = UITextAutocapitalizationTypeNone;
-    tf.keyboardType = UIKeyboardTypeURL;
-  }];
-  [a addAction:[UIAlertAction actionWithTitle:@"取消" style:UIAlertActionStyleCancel handler:nil]];
+  UIViewController *host = [self _hostVC];
+  if (!host) return;
+  BOOL isEdit = existing != nil;
+  NSString *eh = existing[@"host"] ? [NSString stringWithFormat:@"%@", existing[@"host"]] : nil;
+  NSString *eu = existing[@"uri"] ? [NSString stringWithFormat:@"%@", existing[@"uri"]] : @"/";
+  NSString *eurl = existing[@"url"] ? [NSString stringWithFormat:@"%@", existing[@"url"]] : nil;
+  BOOL enable = existing ? [existing[@"enable"] boolValue] : YES;
+  AutumnOpsJumpEditorController *vc =
+      [[AutumnOpsJumpEditorController alloc] initWithExistingHost:eh uri:eu url:eurl enable:enable isEdit:isEdit];
   __weak typeof(self) weakSelf = self;
-  [a addAction:[UIAlertAction actionWithTitle:@"保存" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
-    NSString *host = [a.textFields[0].text stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet];
-    NSString *uri = [a.textFields[1].text stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet];
-    NSString *url = [a.textFields[2].text stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet];
-    if (!host.length || !uri.length || !url.length) {
-      weakSelf.toast(@"域名、资源路径、跳转地址均不能为空");
+  vc.onSave = ^(AutumnOpsJumpEditorResult *result) {
+    if (!result.host.length || !result.uri.length || !result.url.length) {
+      if (weakSelf.toast) weakSelf.toast(@"域名、资源路径、跳转地址均不能为空");
       return;
     }
-    BOOL enable = existing ? [existing[@"enable"] boolValue] : YES;
-    weakSelf.setBusy(YES);
-    if (existing) {
-      NSInteger jid = [existing[@"id"] integerValue];
-      [weakSelf.client jumpUpdateId:jid host:host uri:uri url:url enable:@(enable) completion:^(NSDictionary *data, NSError *error) {
-        weakSelf.setBusy(NO);
-        if (error) weakSelf.toast(error.localizedDescription);
-        else [weakSelf reload];
-      }];
+    if (weakSelf.setBusy) weakSelf.setBusy(YES);
+    void (^done)(NSDictionary *, NSError *) = ^(NSDictionary *data, NSError *error) {
+      if (weakSelf.setBusy) weakSelf.setBusy(NO);
+      if (error) {
+        if (weakSelf.toast) weakSelf.toast(error.localizedDescription);
+        return;
+      }
+      if (weakSelf.toast) {
+        weakSelf.toast(isEdit ? [NSString stringWithFormat:@"已更新：%@%@", result.host, result.uri]
+                              : [NSString stringWithFormat:@"已添加：%@%@", result.host, result.uri]);
+      }
+      [weakSelf reload];
+    };
+    if (isEdit) {
+      [weakSelf.client jumpUpdateId:[existing[@"id"] integerValue]
+                               host:result.host
+                                uri:result.uri
+                                url:result.url
+                             enable:@(result.enable)
+                         completion:done];
     } else {
-      [weakSelf.client jumpSaveHost:host uri:uri url:url enable:YES completion:^(NSDictionary *data, NSError *error) {
-        weakSelf.setBusy(NO);
-        if (error) weakSelf.toast(error.localizedDescription);
-        else [weakSelf reload];
-      }];
+      [weakSelf.client jumpSaveHost:result.host uri:result.uri url:result.url enable:result.enable completion:done];
     }
-  }]];
-  [[self _hostVC] presentViewController:a animated:YES completion:nil];
-}
-
-- (NSInteger)tableView:(UITableView *)tableView numberOfRowsInSection:(NSInteger)section {
-  return self.rows.count;
-}
-
-- (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath {
-  UITableViewCell *cell = [tableView dequeueReusableCellWithIdentifier:@"rule" forIndexPath:indexPath];
-  for (UIView *v in cell.contentView.subviews) [v removeFromSuperview];
-  cell.selectionStyle = UITableViewCellSelectionStyleNone;
-  cell.backgroundColor = UIColor.clearColor;
-  NSDictionary *row = self.rows[indexPath.row];
-  BOOL on = [row[@"enable"] boolValue];
-  NSString *host = [NSString stringWithFormat:@"%@", row[@"host"] ?: @""];
-  NSString *uri = [NSString stringWithFormat:@"%@", row[@"uri"] ?: @""];
-  NSString *url = [NSString stringWithFormat:@"%@", row[@"url"] ?: @""];
-
-  UIView *card = [UIView new];
-  card.backgroundColor = UIColor.secondarySystemGroupedBackgroundColor;
-  card.layer.cornerRadius = 12;
-  card.layer.borderWidth = 1.0 / UIScreen.mainScreen.scale;
-  card.layer.borderColor = UIColor.separatorColor.CGColor;
-  card.clipsToBounds = YES;
-  UIView *bar = [UIView new];
-  bar.backgroundColor = on ? UIColor.systemTealColor : UIColor.tertiaryLabelColor;
-  UILabel *title = [UILabel new];
-  title.text = [NSString stringWithFormat:@"%@%@", host, uri];
-  title.font = [UIFont monospacedSystemFontOfSize:15 weight:UIFontWeightSemibold];
-  title.numberOfLines = 0;
-  UILabel *sub = [UILabel new];
-  sub.text = [NSString stringWithFormat:@"→ %@", url];
-  sub.font = [UIFont systemFontOfSize:13];
-  sub.textColor = UIColor.secondaryLabelColor;
-  sub.numberOfLines = 0;
-  UILabel *pill = [UILabel new];
-  pill.text = on ? @"  已开启  " : @"  已关闭  ";
-  pill.font = [UIFont systemFontOfSize:11 weight:UIFontWeightSemibold];
-  pill.textColor = on ? UIColor.systemTealColor : UIColor.secondaryLabelColor;
-  pill.backgroundColor = [UIColor.tertiarySystemFillColor colorWithAlphaComponent:0.8];
-  pill.layer.cornerRadius = 10;
-  pill.clipsToBounds = YES;
-  UIButton *edit = [UIButton buttonWithType:UIButtonTypeSystem];
-  [edit setTitle:@"编辑" forState:UIControlStateNormal];
-  edit.tag = indexPath.row;
-  [edit addTarget:self action:@selector(_editTap:) forControlEvents:UIControlEventTouchUpInside];
-  UIButton *toggle = [UIButton buttonWithType:UIButtonTypeSystem];
-  [toggle setTitle:on ? @"关闭" : @"开启" forState:UIControlStateNormal];
-  toggle.tag = indexPath.row;
-  [toggle addTarget:self action:@selector(_toggle:) forControlEvents:UIControlEventTouchUpInside];
-  UIButton *del = [UIButton buttonWithType:UIButtonTypeSystem];
-  [del setTitle:@"删除" forState:UIControlStateNormal];
-  [del setTitleColor:UIColor.systemRedColor forState:UIControlStateNormal];
-  del.tag = indexPath.row;
-  [del addTarget:self action:@selector(_delete:) forControlEvents:UIControlEventTouchUpInside];
-  UIStackView *actions = [[UIStackView alloc] initWithArrangedSubviews:@[edit, toggle, del]];
-  actions.axis = UILayoutConstraintAxisHorizontal;
-  actions.spacing = 8;
-  UIStackView *top = [[UIStackView alloc] initWithArrangedSubviews:@[title, pill]];
-  top.axis = UILayoutConstraintAxisHorizontal;
-  top.spacing = 6;
-  top.alignment = UIStackViewAlignmentTop;
-  [title setContentHuggingPriority:UILayoutPriorityDefaultLow forAxis:UILayoutConstraintAxisHorizontal];
-  UIStackView *col = [[UIStackView alloc] initWithArrangedSubviews:@[top, sub, actions]];
-  col.axis = UILayoutConstraintAxisVertical;
-  col.spacing = 6;
-  [cell.contentView addSubview:card];
-  [card addSubview:bar];
-  [card addSubview:col];
-  [card mas_makeConstraints:^(MASConstraintMaker *make) {
-    make.edges.equalTo(cell.contentView).insets(UIEdgeInsetsMake(0, 0, 8, 0));
-  }];
-  [bar mas_makeConstraints:^(MASConstraintMaker *make) {
-    make.left.top.bottom.equalTo(card);
-    make.width.mas_equalTo(4);
-  }];
-  [col mas_makeConstraints:^(MASConstraintMaker *make) {
-    make.edges.equalTo(card).insets(UIEdgeInsetsMake(10, 16, 8, 12));
-  }];
-  return cell;
-}
-
-- (void)_editTap:(UIButton *)sender {
-  [self _edit:self.rows[sender.tag]];
+  };
+  UINavigationController *nav = [[UINavigationController alloc] initWithRootViewController:vc];
+  nav.modalPresentationStyle = UIModalPresentationFormSheet;
+  [host presentViewController:nav animated:YES completion:nil];
 }
 
 - (void)_toggle:(UIButton *)sender {
-  NSDictionary *row = self.rows[sender.tag];
+  NSDictionary *row = objc_getAssociatedObject(sender, kJumpRowDictKey);
   NSInteger jid = [row[@"id"] integerValue];
   BOOL next = ![row[@"enable"] boolValue];
-  self.setBusy(YES);
+  NSString *name = [NSString stringWithFormat:@"%@%@", row[@"host"] ?: @"", row[@"uri"] ?: @""];
+  if (self.setBusy) self.setBusy(YES);
+  __weak typeof(self) weakSelf = self;
   [self.client jumpUpdateId:jid host:nil uri:nil url:nil enable:@(next) completion:^(NSDictionary *data, NSError *error) {
-    self.setBusy(NO);
-    if (error) self.toast(error.localizedDescription);
-    else [self reload];
+    if (weakSelf.setBusy) weakSelf.setBusy(NO);
+    if (error) {
+      if (weakSelf.toast) weakSelf.toast(error.localizedDescription);
+      return;
+    }
+    if (weakSelf.toast) {
+      weakSelf.toast(next ? [NSString stringWithFormat:@"已开启：%@", name]
+                          : [NSString stringWithFormat:@"已关闭：%@", name]);
+    }
+    [weakSelf reload];
   }];
 }
 
 - (void)_delete:(UIButton *)sender {
-  NSDictionary *row = self.rows[sender.tag];
+  NSDictionary *row = objc_getAssociatedObject(sender, kJumpRowDictKey);
   NSInteger jid = [row[@"id"] integerValue];
   NSString *name = [NSString stringWithFormat:@"%@%@", row[@"host"] ?: @"", row[@"uri"] ?: @""];
-  UIAlertController *a = [UIAlertController alertControllerWithTitle:@"删除跳转" message:[NSString stringWithFormat:@"确定删除 %@？", name] preferredStyle:UIAlertControllerStyleAlert];
-  [a addAction:[UIAlertAction actionWithTitle:@"取消" style:UIAlertActionStyleCancel handler:nil]];
+  UIViewController *host = [self _hostVC];
+  if (!host) return;
   __weak typeof(self) weakSelf = self;
-  [a addAction:[UIAlertAction actionWithTitle:@"删除" style:UIAlertActionStyleDestructive handler:^(UIAlertAction *action) {
-    weakSelf.setBusy(YES);
-    [weakSelf.client jumpDeleteIds:@[@(jid)] completion:^(NSDictionary *data, NSError *error) {
-      weakSelf.setBusy(NO);
-      if (error) weakSelf.toast(error.localizedDescription);
-      else [weakSelf reload];
+  [AutumnOpsConfirmPresenter presentFrom:host
+                                   title:@"删除跳转"
+                                    body:[NSString stringWithFormat:@"确定删除 %@？", name]
+                             destructive:YES
+                               onConfirm:^{
+    if (weakSelf.setBusy) weakSelf.setBusy(YES);
+    [weakSelf.client jumpDeleteIds:@[ @(jid) ] completion:^(NSDictionary *data, NSError *error) {
+      if (weakSelf.setBusy) weakSelf.setBusy(NO);
+      if (error) {
+        if (weakSelf.toast) weakSelf.toast(error.localizedDescription);
+        return;
+      }
+      [weakSelf reload];
     }];
-  }]];
-  [[self _hostVC] presentViewController:a animated:YES completion:nil];
+  }];
 }
 
 @end

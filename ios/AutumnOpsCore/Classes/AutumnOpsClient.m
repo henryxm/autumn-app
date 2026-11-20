@@ -337,6 +337,22 @@
 - (void)runtimeSnapshot:(AutumnOpsDictBlock)completion {
   [self _authedPost:@"/ops/api/v1/runtime/snapshot" body:@{} completion:completion];
 }
+
+- (void)runtimeSnapshotModel:(AutumnOpsRuntimeSnapshotBlock)completion {
+  [self ensureSession:^(NSError *error) {
+    if (error) {
+      if (completion) completion(nil, error);
+      return;
+    }
+    [self runtimeSnapshot:^(NSDictionary *data, NSError *err) {
+      if (err) {
+        if (completion) completion(nil, err);
+        return;
+      }
+      if (completion) completion([AutumnOpsRuntimeSnapshot fromJSON:data ?: @{}], nil);
+    }];
+  }];
+}
 - (void)gateVerifyClearToken:(NSString *)clearToken completion:(AutumnOpsDictBlock)completion {
   [self _authedPost:@"/ops/api/v1/gate/verifyClearToken" body:@{ @"clearToken": clearToken ?: @"" } completion:completion];
 }

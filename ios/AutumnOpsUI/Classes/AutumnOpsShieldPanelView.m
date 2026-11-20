@@ -1,25 +1,44 @@
 #import "AutumnOpsShieldPanelView.h"
+#import "AutumnOpsConfirmPresenter.h"
+#import "AutumnOpsCountChipBarView.h"
+#import "AutumnOpsFusedDualFieldActionView.h"
+#import "AutumnOpsKeyboardDismissHelper.h"
+#import "AutumnOpsRuleRowChromeView.h"
+#import "AutumnOpsSectionCardView.h"
+#import "AutumnOpsSwitchRowView.h"
+#import "AutumnOpsUIControls.h"
+#import "AutumnOpsUITheme.h"
 #import <AutumnOpsCore/AutumnOpsCore.h>
 #import <Masonry/Masonry.h>
+#import <objc/runtime.h>
 
-@interface AutumnOpsShieldPanelView () <UITableViewDataSource, UITableViewDelegate, UITextFieldDelegate>
+static const NSInteger kShieldLimit = 50;
+static const void *kShieldRowIdKey = &kShieldRowIdKey;
+static const void *kShieldEnableKey = &kShieldEnableKey;
+static const void *kShieldUriKey = &kShieldUriKey;
+
+@interface AutumnOpsShieldPanelView ()
 @property (nonatomic, strong) AutumnOpsClient *client;
 @property (nonatomic, copy) AutumnOpsPanelToast toast;
 @property (nonatomic, copy) AutumnOpsPanelBusy setBusy;
 @property (nonatomic, strong) UIScrollView *scroll;
-@property (nonatomic, strong) UIView *content;
-@property (nonatomic, strong) UISwitch *enableSwitch;
-@property (nonatomic, strong) UISwitch *attackSwitch;
-@property (nonatomic, strong) UISwitch *printSwitch;
-@property (nonatomic, strong) UITextField *uriField;
-@property (nonatomic, strong) UITextField *autoField;
-@property (nonatomic, strong) UILabel *countChip;
-@property (nonatomic, strong) UITableView *table;
-@property (nonatomic, copy) NSArray<NSDictionary *> *rows;
-@property (nonatomic) BOOL attack;
-@property (nonatomic) BOOL printOn;
-@property (nonatomic) BOOL enableOn;
+@property (nonatomic, strong) UIStackView *rootStack;
+@property (nonatomic, strong) AutumnOpsSectionCardView *settingsCard;
+@property (nonatomic, strong) AutumnOpsSwitchRowView *enableRow;
+@property (nonatomic, strong) AutumnOpsSwitchRowView *attackRow;
+@property (nonatomic, strong) AutumnOpsSwitchRowView *printRow;
+@property (nonatomic, strong) AutumnOpsFusedDualFieldActionView *addDual;
+@property (nonatomic, strong) AutumnOpsCountChipBarView *countBar;
+@property (nonatomic, strong) UIStackView *rowsStack;
+@property (nonatomic, strong) UILabel *errorLabel;
+@property (nonatomic, strong) UILabel *emptyLabel;
+@property (nonatomic, strong) UIActivityIndicatorView *loadingSpin;
+@property (nonatomic, strong) NSMutableArray<NSDictionary *> *rows;
+@property (nonatomic) NSInteger page;
 @property (nonatomic) NSInteger totalCount;
+@property (nonatomic) BOOL hasMore;
+@property (nonatomic) BOOL loading;
+@property (nonatomic) BOOL loadingMore;
 @end
 
 @implementation AutumnOpsShieldPanelView
@@ -32,393 +51,346 @@
     _client = client;
     _toast = [toast copy];
     _setBusy = [setBusy copy];
-    _rows = @[];
+    _rows = [NSMutableArray array];
     [self _build];
   }
   return self;
 }
 
 - (void)_build {
-  self.backgroundColor = UIColor.systemGroupedBackgroundColor;
+  self.backgroundColor = UIColor.clearColor;
   _scroll = [UIScrollView new];
   _scroll.alwaysBounceVertical = YES;
   UIRefreshControl *rc = [UIRefreshControl new];
   [rc addTarget:self action:@selector(reload) forControlEvents:UIControlEventValueChanged];
   _scroll.refreshControl = rc;
-  _content = [UIView new];
   [self addSubview:_scroll];
-  [_scroll addSubview:_content];
   [_scroll mas_makeConstraints:^(MASConstraintMaker *make) { make.edges.equalTo(self); }];
-  [_content mas_makeConstraints:^(MASConstraintMaker *make) {
-    make.edges.equalTo(_scroll);
-    make.width.equalTo(_scroll);
+  [AutumnOpsKeyboardDismissHelper installOnScrollView:_scroll hostView:self];
+
+  _rootStack = [UIStackView new];
+  _rootStack.axis = UILayoutConstraintAxisVertical;
+  _rootStack.spacing = 12;
+  [_scroll addSubview:_rootStack];
+  [_rootStack mas_makeConstraints:^(MASConstraintMaker *make) {
+    make.edges.equalTo(_scroll).insets(UIEdgeInsetsMake(12, 16, 28, 16));
+    make.width.equalTo(_scroll).offset(-32);
   }];
 
-  UILabel *title = [self _title:@"攻击防御"];
-  UILabel *desc = [self _desc:@"配置需防护的资源路径；总开关写库生效，攻击模式与打印为运行时开关。"];
+  UILabel *title = [UILabel new];
+  title.text = @"攻击防御";
+  title.font = [UIFont systemFontOfSize:17 weight:UIFontWeightBold];
+  title.textColor = AutumnOpsUITheme.onSurface;
+  UILabel *desc = [UILabel new];
+  desc.text = @"配置需防护的资源路径；总开关写库生效，攻击模式与打印为运行时开关。";
+  desc.numberOfLines = 0;
+  desc.font = [UIFont systemFontOfSize:13];
+  desc.textColor = AutumnOpsUITheme.onSurfaceVariant;
+  [_rootStack addArrangedSubview:title];
+  [_rootStack addArrangedSubview:desc];
 
-  UIView *settings = [self _card];
-  _enableSwitch = [UISwitch new];
-  _attackSwitch = [UISwitch new];
-  _printSwitch = [UISwitch new];
-  [_enableSwitch addTarget:self action:@selector(_enableChanged) forControlEvents:UIControlEventValueChanged];
-  [_attackSwitch addTarget:self action:@selector(_attackChanged) forControlEvents:UIControlEventValueChanged];
-  [_printSwitch addTarget:self action:@selector(_printChanged) forControlEvents:UIControlEventValueChanged];
-  UIStackView *settingsStack = [[UIStackView alloc] initWithArrangedSubviews:@[
-    [self _switchRow:@"总开关" sub:@"启用或关闭默认盾牌规则集" sw:_enableSwitch],
-    [self _switchRow:@"攻击模式" sub:@"对未放行 IP 拦截匹配资源" sw:_attackSwitch],
-    [self _switchRow:@"打印日志" sub:@"拦截与放行时输出防护日志" sw:_printSwitch],
-  ]];
-  settingsStack.axis = UILayoutConstraintAxisVertical;
-  settingsStack.spacing = 8;
-  UILabel *setTitle = [UILabel new];
-  setTitle.text = @"运行开关";
-  setTitle.font = [UIFont systemFontOfSize:15 weight:UIFontWeightBold];
-  UILabel *setBody = [self _desc:@"总开关写入数据库；攻击模式与打印仅影响当前进程内存。"];
-  UIStackView *setInner = [[UIStackView alloc] initWithArrangedSubviews:@[setTitle, setBody, settingsStack]];
-  setInner.axis = UILayoutConstraintAxisVertical;
-  setInner.spacing = 8;
-  [settings addSubview:setInner];
-  [setInner mas_makeConstraints:^(MASConstraintMaker *make) {
-    make.edges.equalTo(settings).insets(UIEdgeInsetsMake(14, 16, 16, 16));
-  }];
+  _settingsCard = [[AutumnOpsSectionCardView alloc] initWithTitle:@"运行开关"
+                                                             body:@"总开关写入数据库；攻击模式与打印仅影响当前进程内存。"];
+  _enableRow = [[AutumnOpsSwitchRowView alloc] initWithTitle:@"总开关" subtitle:@"启用或关闭默认盾牌规则集"];
+  _attackRow = [[AutumnOpsSwitchRowView alloc] initWithTitle:@"攻击模式" subtitle:@"对未放行 IP 拦截匹配资源"];
+  _printRow = [[AutumnOpsSwitchRowView alloc] initWithTitle:@"打印日志" subtitle:@"拦截与放行时输出防护日志"];
+  [_enableRow.switchControl addTarget:self action:@selector(_enableChanged) forControlEvents:UIControlEventValueChanged];
+  [_attackRow.switchControl addTarget:self action:@selector(_attackChanged) forControlEvents:UIControlEventValueChanged];
+  [_printRow.switchControl addTarget:self action:@selector(_printChanged) forControlEvents:UIControlEventValueChanged];
+  [_settingsCard.contentStack addArrangedSubview:_enableRow];
+  [_settingsCard.contentStack addArrangedSubview:_attackRow];
+  [_settingsCard.contentStack addArrangedSubview:_printRow];
+  [_rootStack addArrangedSubview:_settingsCard];
 
-  UIView *fused = [self _fusedBar];
-  _countChip = [self _chip:@"暂无规则"];
-  _table = [[UITableView alloc] initWithFrame:CGRectZero style:UITableViewStylePlain];
-  _table.dataSource = self;
-  _table.delegate = self;
-  _table.scrollEnabled = NO;
-  _table.separatorStyle = UITableViewCellSeparatorStyleNone;
-  _table.backgroundColor = UIColor.clearColor;
-  [_table registerClass:UITableViewCell.class forCellReuseIdentifier:@"rule"];
+  _addDual = [[AutumnOpsFusedDualFieldActionView alloc] initWithPrimaryHint:@"资源路径，如 /"
+                                                             secondaryHint:@"自动阈值"
+                                                               actionTitle:@"添加"
+                                                                    target:self
+                                                                    action:@selector(_addRule)];
+  _addDual.primaryField.autocapitalizationType = UITextAutocapitalizationTypeNone;
+  _addDual.primaryField.autocorrectionType = UITextAutocorrectionTypeNo;
+  _addDual.secondaryField.text = @"10000";
+  _addDual.secondaryField.keyboardType = UIKeyboardTypeNumberPad;
+  [_rootStack addArrangedSubview:_addDual];
 
-  UIStackView *root = [[UIStackView alloc] initWithArrangedSubviews:@[title, desc, settings, fused, _countChip, _table]];
-  root.axis = UILayoutConstraintAxisVertical;
-  root.spacing = 12;
-  root.alignment = UIStackViewAlignmentFill;
-  [_content addSubview:root];
-  [root mas_makeConstraints:^(MASConstraintMaker *make) {
-    make.edges.equalTo(_content).insets(UIEdgeInsetsMake(12, 16, 28, 16));
-  }];
-  [_table mas_makeConstraints:^(MASConstraintMaker *make) {
-    make.height.mas_equalTo(1).priorityLow();
-  }];
+  _countBar = [AutumnOpsCountChipBarView new];
+  __weak typeof(self) weakSelf = self;
+  _countBar.onLoadMore = ^{ [weakSelf _loadMore]; };
+  [_rootStack addArrangedSubview:_countBar];
+
+  _loadingSpin = [[UIActivityIndicatorView alloc] initWithActivityIndicatorStyle:UIActivityIndicatorViewStyleMedium];
+  _loadingSpin.hidesWhenStopped = YES;
+  [_rootStack addArrangedSubview:_loadingSpin];
+
+  _errorLabel = [UILabel new];
+  _errorLabel.numberOfLines = 0;
+  _errorLabel.font = [UIFont systemFontOfSize:13];
+  _errorLabel.textColor = AutumnOpsUITheme.error;
+  _errorLabel.hidden = YES;
+  _errorLabel.textAlignment = NSTextAlignmentCenter;
+  [_rootStack addArrangedSubview:_errorLabel];
+
+  UIButton *retry = [AutumnOpsUIControls buttonWithTitle:@"重试"
+                                                   style:AutumnOpsButtonStyleOutlined
+                                                  target:self
+                                                  action:@selector(reload)];
+  retry.tag = 801;
+  retry.hidden = YES;
+  [_rootStack addArrangedSubview:retry];
+
+  _emptyLabel = [UILabel new];
+  _emptyLabel.text = @"暂无规则，在上方填写路径后添加";
+  _emptyLabel.font = [UIFont systemFontOfSize:14];
+  _emptyLabel.textColor = AutumnOpsUITheme.onSurfaceVariant;
+  _emptyLabel.textAlignment = NSTextAlignmentCenter;
+  _emptyLabel.hidden = YES;
+  [_rootStack addArrangedSubview:_emptyLabel];
+
+  _rowsStack = [UIStackView new];
+  _rowsStack.axis = UILayoutConstraintAxisVertical;
+  _rowsStack.spacing = 0;
+  [_rootStack addArrangedSubview:_rowsStack];
 }
 
-- (UILabel *)_title:(NSString *)t {
-  UILabel *l = [UILabel new];
-  l.text = t;
-  l.font = [UIFont systemFontOfSize:17 weight:UIFontWeightBold];
-  return l;
+- (UIViewController *)_hostVC {
+  UIResponder *r = self;
+  while (r) {
+    if ([r isKindOfClass:UIViewController.class]) return (UIViewController *)r;
+    r = r.nextResponder;
+  }
+  return nil;
 }
 
-- (UILabel *)_desc:(NSString *)t {
-  UILabel *l = [UILabel new];
-  l.text = t;
-  l.numberOfLines = 0;
-  l.font = [UIFont systemFontOfSize:13];
-  l.textColor = UIColor.secondaryLabelColor;
-  return l;
-}
-
-- (UIView *)_card {
-  UIView *v = [UIView new];
-  v.backgroundColor = [UIColor.secondarySystemGroupedBackgroundColor colorWithAlphaComponent:0.9];
-  v.layer.cornerRadius = 14;
-  return v;
-}
-
-- (UIView *)_switchRow:(NSString *)title sub:(NSString *)sub sw:(UISwitch *)sw {
-  UILabel *t = [UILabel new];
-  t.text = title;
-  t.font = [UIFont systemFontOfSize:15 weight:UIFontWeightSemibold];
-  UILabel *s = [UILabel new];
-  s.text = sub;
-  s.font = [UIFont systemFontOfSize:12];
-  s.textColor = UIColor.secondaryLabelColor;
-  s.numberOfLines = 0;
-  UIStackView *left = [[UIStackView alloc] initWithArrangedSubviews:@[t, s]];
-  left.axis = UILayoutConstraintAxisVertical;
-  left.spacing = 2;
-  UIStackView *row = [[UIStackView alloc] initWithArrangedSubviews:@[left, sw]];
-  row.axis = UILayoutConstraintAxisHorizontal;
-  row.alignment = UIStackViewAlignmentCenter;
-  row.spacing = 8;
-  [left setContentHuggingPriority:UILayoutPriorityDefaultLow forAxis:UILayoutConstraintAxisHorizontal];
-  return row;
-}
-
-- (UIView *)_fusedBar {
-  UIView *bar = [UIView new];
-  bar.backgroundColor = UIColor.secondarySystemGroupedBackgroundColor;
-  bar.layer.cornerRadius = 12;
-  bar.layer.borderWidth = 1.0 / UIScreen.mainScreen.scale;
-  bar.layer.borderColor = UIColor.separatorColor.CGColor;
-  bar.clipsToBounds = YES;
-  _uriField = [UITextField new];
-  _uriField.placeholder = @"资源路径，如 /";
-  _uriField.font = [UIFont monospacedSystemFontOfSize:15 weight:UIFontWeightRegular];
-  _uriField.autocapitalizationType = UITextAutocapitalizationTypeNone;
-  _uriField.autocorrectionType = UITextAutocorrectionTypeNo;
-  _autoField = [UITextField new];
-  _autoField.placeholder = @"自动阈值";
-  _autoField.text = @"10000";
-  _autoField.keyboardType = UIKeyboardTypeNumberPad;
-  _autoField.font = [UIFont systemFontOfSize:15];
-  UIButton *add = [UIButton buttonWithType:UIButtonTypeSystem];
-  [add setTitle:@"添加" forState:UIControlStateNormal];
-  add.titleLabel.font = [UIFont systemFontOfSize:15 weight:UIFontWeightSemibold];
-  [add addTarget:self action:@selector(_addRule) forControlEvents:UIControlEventTouchUpInside];
-  UIView *d1 = [UIView new];
-  d1.backgroundColor = UIColor.separatorColor;
-  UIView *d2 = [UIView new];
-  d2.backgroundColor = UIColor.separatorColor;
-  [_uriField mas_makeConstraints:^(MASConstraintMaker *make) {}];
-  UIStackView *row = [[UIStackView alloc] initWithArrangedSubviews:@[_uriField, d1, _autoField, d2, add]];
-  row.axis = UILayoutConstraintAxisHorizontal;
-  row.alignment = UIStackViewAlignmentFill;
-  row.spacing = 0;
-  [bar addSubview:row];
-  [row mas_makeConstraints:^(MASConstraintMaker *make) {
-    make.edges.equalTo(bar);
-    make.height.mas_equalTo(48);
-  }];
-  [d1 mas_makeConstraints:^(MASConstraintMaker *make) { make.width.mas_equalTo(1); }];
-  [d2 mas_makeConstraints:^(MASConstraintMaker *make) { make.width.mas_equalTo(1); }];
-  [_uriField mas_makeConstraints:^(MASConstraintMaker *make) { make.width.greaterThanOrEqualTo(@120); }];
-  [_autoField mas_makeConstraints:^(MASConstraintMaker *make) { make.width.mas_equalTo(88); }];
-  [add mas_makeConstraints:^(MASConstraintMaker *make) { make.width.mas_equalTo(64); }];
-  UIView *padL = [UIView new];
-  // inset fields via leftView
-  _uriField.leftView = [[UIView alloc] initWithFrame:CGRectMake(0, 0, 12, 1)];
-  _uriField.leftViewMode = UITextFieldViewModeAlways;
-  _autoField.leftView = [[UIView alloc] initWithFrame:CGRectMake(0, 0, 8, 1)];
-  _autoField.leftViewMode = UITextFieldViewModeAlways;
-  (void)padL;
-  return bar;
-}
-
-- (UILabel *)_chip:(NSString *)text {
-  UILabel *l = [UILabel new];
-  l.text = text;
-  l.font = [UIFont systemFontOfSize:12 weight:UIFontWeightMedium];
-  l.textColor = UIColor.secondaryLabelColor;
-  l.backgroundColor = [UIColor.tertiarySystemFillColor colorWithAlphaComponent:0.9];
-  l.layer.cornerRadius = 10;
-  l.clipsToBounds = YES;
-  l.textAlignment = NSTextAlignmentCenter;
-  return l;
+- (BOOL)_pageHasMore:(NSDictionary *)page pageNum:(NSInteger)pageNum {
+  if (page[@"hasMore"] != nil) return [page[@"hasMore"] boolValue];
+  NSInteger count = [page[@"count"] respondsToSelector:@selector(integerValue)] ? [page[@"count"] integerValue] : 0;
+  return pageNum * kShieldLimit < count;
 }
 
 - (void)reload {
-  self.setBusy(YES);
-  [self.client shieldStatus:^(NSDictionary *status, NSError *e1) {
-    if (e1) {
-      self.setBusy(NO);
-      [self.scroll.refreshControl endRefreshing];
-      self.toast(e1.localizedDescription);
+  if (self.loading) return;
+  self.loading = YES;
+  self.errorLabel.hidden = YES;
+  [self viewWithTag:801].hidden = YES;
+  if (self.rows.count == 0) [self.loadingSpin startAnimating];
+  if (self.setBusy) self.setBusy(YES);
+  __weak typeof(self) weakSelf = self;
+  [self.client ensureSession:^(NSError *sessErr) {
+    if (sessErr) {
+      [weakSelf _reloadFailed:sessErr.localizedDescription];
       return;
     }
-    self.enableOn = [status[@"enable"] boolValue];
-    self.attack = [status[@"attack"] boolValue];
-    self.printOn = [status[@"print"] boolValue];
-    self.enableSwitch.on = self.enableOn;
-    self.attackSwitch.on = self.attack;
-    self.printSwitch.on = self.printOn;
-    [self.client shieldListPage:1 limit:100 completion:^(NSDictionary *page, NSError *e2) {
-      self.setBusy(NO);
-      [self.scroll.refreshControl endRefreshing];
-      if (e2) {
-        self.toast(e2.localizedDescription);
+    [weakSelf.client shieldStatus:^(NSDictionary *status, NSError *e1) {
+      if (e1) {
+        [weakSelf _reloadFailed:e1.localizedDescription];
         return;
       }
-      NSArray *list = [page[@"list"] isKindOfClass:[NSArray class]] ? page[@"list"] : @[];
-      NSMutableArray *rows = [NSMutableArray array];
-      for (id o in list) if ([o isKindOfClass:[NSDictionary class]]) [rows addObject:o];
-      self.rows = rows;
-      self.totalCount = [page[@"count"] respondsToSelector:@selector(integerValue)] ? [page[@"count"] integerValue] : rows.count;
-      self.countChip.text = self.totalCount <= 0 ? @"  暂无规则  " : [NSString stringWithFormat:@"  共 %ld 条  ", (long)self.totalCount];
-      [self.table reloadData];
-      [self _updateTableHeight];
+      weakSelf.enableRow.switchControl.on = [status[@"enable"] boolValue];
+      weakSelf.attackRow.switchControl.on = [status[@"attack"] boolValue];
+      weakSelf.printRow.switchControl.on = [status[@"print"] boolValue];
+      [weakSelf.client shieldListPage:1 limit:kShieldLimit completion:^(NSDictionary *page, NSError *e2) {
+        [weakSelf _finishReloadPage:page error:e2];
+      }];
     }];
   }];
 }
 
-- (void)_updateTableHeight {
-  [self.table layoutIfNeeded];
-  CGFloat h = MAX(1, self.table.contentSize.height);
-  [self.table mas_updateConstraints:^(MASConstraintMaker *make) {
-    make.height.mas_equalTo(h);
+- (void)_reloadFailed:(NSString *)msg {
+  self.loading = NO;
+  if (self.setBusy) self.setBusy(NO);
+  [self.loadingSpin stopAnimating];
+  if (self.scroll.refreshControl.refreshing) [self.scroll.refreshControl endRefreshing];
+  self.errorLabel.text = [NSString stringWithFormat:@"加载失败：%@", msg ?: @"未知错误"];
+  self.errorLabel.hidden = self.rows.count > 0;
+  [self viewWithTag:801].hidden = self.rows.count > 0;
+  if (self.toast && self.rows.count > 0) self.toast(msg);
+  [self _refreshCountBar];
+}
+
+- (void)_finishReloadPage:(NSDictionary *)page error:(NSError *)error {
+  self.loading = NO;
+  if (self.setBusy) self.setBusy(NO);
+  [self.loadingSpin stopAnimating];
+  if (self.scroll.refreshControl.refreshing) [self.scroll.refreshControl endRefreshing];
+  if (error) {
+    [self _reloadFailed:error.localizedDescription];
+    return;
+  }
+  NSArray *list = [page[@"list"] isKindOfClass:[NSArray class]] ? page[@"list"] : @[];
+  [self.rows removeAllObjects];
+  for (id o in list) if ([o isKindOfClass:[NSDictionary class]]) [self.rows addObject:o];
+  self.page = [page[@"page"] respondsToSelector:@selector(integerValue)] ? [page[@"page"] integerValue] : 1;
+  if (self.page <= 0) self.page = 1;
+  self.totalCount = [page[@"count"] respondsToSelector:@selector(integerValue)] ? [page[@"count"] integerValue] : self.rows.count;
+  self.hasMore = [self _pageHasMore:page pageNum:self.page];
+  self.errorLabel.hidden = YES;
+  [self viewWithTag:801].hidden = YES;
+  [self _rebuildRows];
+}
+
+- (void)_loadMore {
+  if (self.loading || self.loadingMore || !self.hasMore) return;
+  self.loadingMore = YES;
+  [self _refreshCountBar];
+  NSInteger next = self.page + 1;
+  __weak typeof(self) weakSelf = self;
+  [self.client shieldListPage:next limit:kShieldLimit completion:^(NSDictionary *page, NSError *error) {
+    weakSelf.loadingMore = NO;
+    if (error) {
+      if (weakSelf.toast) weakSelf.toast(error.localizedDescription);
+      [weakSelf _refreshCountBar];
+      return;
+    }
+    NSArray *list = [page[@"list"] isKindOfClass:[NSArray class]] ? page[@"list"] : @[];
+    for (id o in list) if ([o isKindOfClass:[NSDictionary class]]) [weakSelf.rows addObject:o];
+    weakSelf.page = [page[@"page"] respondsToSelector:@selector(integerValue)] ? [page[@"page"] integerValue] : next;
+    weakSelf.totalCount = [page[@"count"] respondsToSelector:@selector(integerValue)] ? [page[@"count"] integerValue] : weakSelf.totalCount;
+    weakSelf.hasMore = [weakSelf _pageHasMore:page pageNum:weakSelf.page];
+    [weakSelf _rebuildRows];
   }];
 }
 
+- (void)_refreshCountBar {
+  [self.countBar configureLoaded:self.rows.count
+                           total:self.totalCount
+                         hasMore:self.hasMore && !self.loading
+                     loadingMore:self.loadingMore
+                      emptyLabel:@"暂无规则"];
+}
+
+- (void)_rebuildRows {
+  for (UIView *v in [self.rowsStack.arrangedSubviews copy]) {
+    [self.rowsStack removeArrangedSubview:v];
+    [v removeFromSuperview];
+  }
+  [self _refreshCountBar];
+  self.emptyLabel.hidden = self.rows.count > 0 || self.loading;
+  for (NSDictionary *row in self.rows) {
+    BOOL on = [row[@"enable"] boolValue];
+    NSString *uri = [NSString stringWithFormat:@"%@", row[@"uri"] ?: @""];
+    NSString *autoS = [NSString stringWithFormat:@"%@", row[@"auto"] ?: @"0"];
+    AutumnOpsRuleRowChromeView *chrome =
+        [[AutumnOpsRuleRowChromeView alloc] initWithTitle:uri
+                                                 subtitle:[NSString stringWithFormat:@"自动阈值 · %@", autoS]
+                                                   active:on
+                                              statusLabel:on ? @"已开启" : @"已关闭"
+                                           titleMonospace:YES];
+    UIButton *toggle = [AutumnOpsRuleRowChromeView textAction:on ? @"关闭" : @"开启" target:self action:@selector(_toggle:)];
+    UIButton *del = [AutumnOpsRuleRowChromeView textAction:@"删除" target:self action:@selector(_delete:)];
+    NSNumber *sid = @([row[@"id"] integerValue]);
+    objc_setAssociatedObject(toggle, kShieldRowIdKey, sid, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    objc_setAssociatedObject(del, kShieldRowIdKey, sid, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    objc_setAssociatedObject(toggle, kShieldEnableKey, @(on), OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    objc_setAssociatedObject(toggle, kShieldUriKey, uri, OBJC_ASSOCIATION_COPY_NONATOMIC);
+    objc_setAssociatedObject(del, kShieldUriKey, uri, OBJC_ASSOCIATION_COPY_NONATOMIC);
+    [chrome setActionViews:@[ toggle, del ]];
+    [self.rowsStack addArrangedSubview:chrome];
+  }
+}
+
 - (void)_enableChanged {
-  BOOL v = self.enableSwitch.on;
-  self.setBusy(YES);
+  BOOL v = self.enableRow.switchControl.on;
+  if (self.setBusy) self.setBusy(YES);
+  __weak typeof(self) weakSelf = self;
   [self.client shieldSetEnable:v completion:^(NSDictionary *data, NSError *error) {
-    self.setBusy(NO);
+    if (weakSelf.setBusy) weakSelf.setBusy(NO);
     if (error) {
-      self.enableSwitch.on = !v;
-      self.toast(error.localizedDescription);
+      weakSelf.enableRow.switchControl.on = !v;
+      if (weakSelf.toast) weakSelf.toast(error.localizedDescription);
     }
   }];
 }
 
 - (void)_attackChanged {
-  BOOL v = self.attackSwitch.on;
-  self.setBusy(YES);
+  BOOL v = self.attackRow.switchControl.on;
+  if (self.setBusy) self.setBusy(YES);
+  __weak typeof(self) weakSelf = self;
   [self.client shieldSetAttack:v completion:^(NSDictionary *data, NSError *error) {
-    self.setBusy(NO);
+    if (weakSelf.setBusy) weakSelf.setBusy(NO);
     if (error) {
-      self.attackSwitch.on = !v;
-      self.toast(error.localizedDescription);
+      weakSelf.attackRow.switchControl.on = !v;
+      if (weakSelf.toast) weakSelf.toast(error.localizedDescription);
     }
   }];
 }
 
 - (void)_printChanged {
-  BOOL v = self.printSwitch.on;
-  self.setBusy(YES);
+  BOOL v = self.printRow.switchControl.on;
+  if (self.setBusy) self.setBusy(YES);
+  __weak typeof(self) weakSelf = self;
   [self.client shieldSetPrint:v completion:^(NSDictionary *data, NSError *error) {
-    self.setBusy(NO);
+    if (weakSelf.setBusy) weakSelf.setBusy(NO);
     if (error) {
-      self.printSwitch.on = !v;
-      self.toast(error.localizedDescription);
+      weakSelf.printRow.switchControl.on = !v;
+      if (weakSelf.toast) weakSelf.toast(error.localizedDescription);
     }
   }];
 }
 
 - (void)_addRule {
-  NSString *uri = [self.uriField.text stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet];
-  NSInteger autoV = self.autoField.text.integerValue;
+  NSString *uri = [self.addDual.primaryField.text stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet];
+  NSInteger autoV = self.addDual.secondaryField.text.integerValue;
   if (!uri.length) {
-    self.toast(@"请填写资源路径，例如 / 或 /api");
+    if (self.toast) self.toast(@"请填写资源路径，例如 / 或 /api");
     return;
   }
   if (autoV < 1000) {
-    self.toast(@"自动阈值须不小于 1000");
+    if (self.toast) self.toast(@"自动阈值须不小于 1000");
     return;
   }
-  self.setBusy(YES);
+  if (self.setBusy) self.setBusy(YES);
+  __weak typeof(self) weakSelf = self;
   [self.client shieldSaveUri:uri enable:YES autoValue:autoV completion:^(NSDictionary *data, NSError *error) {
-    self.setBusy(NO);
+    if (weakSelf.setBusy) weakSelf.setBusy(NO);
     if (error) {
-      self.toast(error.localizedDescription);
+      if (weakSelf.toast) weakSelf.toast(error.localizedDescription);
       return;
     }
-    self.uriField.text = @"";
-    self.toast([NSString stringWithFormat:@"已添加：%@", uri]);
-    [self reload];
+    weakSelf.addDual.primaryField.text = @"";
+    if (weakSelf.toast) weakSelf.toast([NSString stringWithFormat:@"已添加：%@", uri]);
+    [weakSelf reload];
   }];
-}
-
-- (NSInteger)tableView:(UITableView *)tableView numberOfRowsInSection:(NSInteger)section {
-  return self.rows.count;
-}
-
-- (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath {
-  UITableViewCell *cell = [tableView dequeueReusableCellWithIdentifier:@"rule" forIndexPath:indexPath];
-  for (UIView *v in cell.contentView.subviews) [v removeFromSuperview];
-  cell.selectionStyle = UITableViewCellSelectionStyleNone;
-  cell.backgroundColor = UIColor.clearColor;
-  NSDictionary *row = self.rows[indexPath.row];
-  BOOL on = [row[@"enable"] boolValue];
-  NSString *uri = [NSString stringWithFormat:@"%@", row[@"uri"] ?: @""];
-  NSString *autoS = [NSString stringWithFormat:@"%@", row[@"auto"] ?: @"0"];
-
-  UIView *card = [UIView new];
-  card.backgroundColor = UIColor.secondarySystemGroupedBackgroundColor;
-  card.layer.cornerRadius = 12;
-  card.layer.borderWidth = 1.0 / UIScreen.mainScreen.scale;
-  card.layer.borderColor = UIColor.separatorColor.CGColor;
-  card.clipsToBounds = YES;
-  UIView *bar = [UIView new];
-  bar.backgroundColor = on ? UIColor.systemTealColor : UIColor.tertiaryLabelColor;
-  UILabel *title = [UILabel new];
-  title.text = uri;
-  title.font = [UIFont monospacedSystemFontOfSize:15 weight:UIFontWeightSemibold];
-  UILabel *sub = [UILabel new];
-  sub.text = [NSString stringWithFormat:@"自动阈值 · %@", autoS];
-  sub.font = [UIFont systemFontOfSize:13];
-  sub.textColor = UIColor.secondaryLabelColor;
-  UILabel *pill = [UILabel new];
-  pill.text = on ? @"  已开启  " : @"  已关闭  ";
-  pill.font = [UIFont systemFontOfSize:11 weight:UIFontWeightSemibold];
-  pill.textColor = on ? UIColor.systemTealColor : UIColor.secondaryLabelColor;
-  pill.backgroundColor = [UIColor.tertiarySystemFillColor colorWithAlphaComponent:0.8];
-  pill.layer.cornerRadius = 10;
-  pill.clipsToBounds = YES;
-  UIButton *toggle = [UIButton buttonWithType:UIButtonTypeSystem];
-  [toggle setTitle:on ? @"关闭" : @"开启" forState:UIControlStateNormal];
-  toggle.tag = indexPath.row;
-  [toggle addTarget:self action:@selector(_toggle:) forControlEvents:UIControlEventTouchUpInside];
-  UIButton *del = [UIButton buttonWithType:UIButtonTypeSystem];
-  [del setTitle:@"删除" forState:UIControlStateNormal];
-  [del setTitleColor:UIColor.systemRedColor forState:UIControlStateNormal];
-  del.tag = indexPath.row;
-  [del addTarget:self action:@selector(_delete:) forControlEvents:UIControlEventTouchUpInside];
-  UIStackView *actions = [[UIStackView alloc] initWithArrangedSubviews:@[toggle, del]];
-  actions.axis = UILayoutConstraintAxisHorizontal;
-  actions.spacing = 8;
-  UIStackView *top = [[UIStackView alloc] initWithArrangedSubviews:@[title, pill]];
-  top.axis = UILayoutConstraintAxisHorizontal;
-  top.spacing = 6;
-  top.alignment = UIStackViewAlignmentCenter;
-  [title setContentHuggingPriority:UILayoutPriorityDefaultLow forAxis:UILayoutConstraintAxisHorizontal];
-  UIStackView *col = [[UIStackView alloc] initWithArrangedSubviews:@[top, sub, actions]];
-  col.axis = UILayoutConstraintAxisVertical;
-  col.spacing = 6;
-  [cell.contentView addSubview:card];
-  [card addSubview:bar];
-  [card addSubview:col];
-  [card mas_makeConstraints:^(MASConstraintMaker *make) {
-    make.edges.equalTo(cell.contentView).insets(UIEdgeInsetsMake(0, 0, 8, 0));
-  }];
-  [bar mas_makeConstraints:^(MASConstraintMaker *make) {
-    make.left.top.bottom.equalTo(card);
-    make.width.mas_equalTo(4);
-  }];
-  [col mas_makeConstraints:^(MASConstraintMaker *make) {
-    make.edges.equalTo(card).insets(UIEdgeInsetsMake(10, 16, 8, 12));
-  }];
-  return cell;
 }
 
 - (void)_toggle:(UIButton *)sender {
-  NSDictionary *row = self.rows[sender.tag];
-  NSInteger sid = [row[@"id"] integerValue];
-  BOOL next = ![row[@"enable"] boolValue];
-  self.setBusy(YES);
-  [self.client shieldUpdateId:sid uri:nil enable:@(next) autoValue:nil completion:^(NSDictionary *data, NSError *error) {
-    self.setBusy(NO);
-    if (error) self.toast(error.localizedDescription);
-    else [self reload];
+  NSNumber *sid = objc_getAssociatedObject(sender, kShieldRowIdKey);
+  BOOL on = [objc_getAssociatedObject(sender, kShieldEnableKey) boolValue];
+  NSString *uri = objc_getAssociatedObject(sender, kShieldUriKey) ?: @"";
+  if (self.setBusy) self.setBusy(YES);
+  __weak typeof(self) weakSelf = self;
+  [self.client shieldUpdateId:sid.integerValue uri:nil enable:@(!on) autoValue:nil completion:^(NSDictionary *data, NSError *error) {
+    if (weakSelf.setBusy) weakSelf.setBusy(NO);
+    if (error) {
+      if (weakSelf.toast) weakSelf.toast(error.localizedDescription);
+      return;
+    }
+    if (weakSelf.toast) weakSelf.toast(on ? [NSString stringWithFormat:@"已关闭：%@", uri] : [NSString stringWithFormat:@"已开启：%@", uri]);
+    [weakSelf reload];
   }];
 }
 
 - (void)_delete:(UIButton *)sender {
-  NSDictionary *row = self.rows[sender.tag];
-  NSInteger sid = [row[@"id"] integerValue];
-  NSString *uri = [NSString stringWithFormat:@"%@", row[@"uri"] ?: @""];
-  UIAlertController *a = [UIAlertController alertControllerWithTitle:@"删除规则" message:[NSString stringWithFormat:@"确定删除 %@？", uri] preferredStyle:UIAlertControllerStyleAlert];
-  [a addAction:[UIAlertAction actionWithTitle:@"取消" style:UIAlertActionStyleCancel handler:nil]];
+  NSNumber *sid = objc_getAssociatedObject(sender, kShieldRowIdKey);
+  NSString *uri = objc_getAssociatedObject(sender, kShieldUriKey) ?: @"";
+  UIViewController *host = [self _hostVC];
+  if (!host) return;
   __weak typeof(self) weakSelf = self;
-  [a addAction:[UIAlertAction actionWithTitle:@"删除" style:UIAlertActionStyleDestructive handler:^(UIAlertAction *action) {
-    weakSelf.setBusy(YES);
-    [weakSelf.client shieldDeleteIds:@[@(sid)] completion:^(NSDictionary *data, NSError *error) {
-      weakSelf.setBusy(NO);
-      if (error) weakSelf.toast(error.localizedDescription);
-      else [weakSelf reload];
+  [AutumnOpsConfirmPresenter presentFrom:host
+                                   title:@"删除规则"
+                                    body:[NSString stringWithFormat:@"确定删除 %@？", uri]
+                             destructive:YES
+                               onConfirm:^{
+    if (weakSelf.setBusy) weakSelf.setBusy(YES);
+    [weakSelf.client shieldDeleteIds:@[ sid ] completion:^(NSDictionary *data, NSError *error) {
+      if (weakSelf.setBusy) weakSelf.setBusy(NO);
+      if (error) {
+        if (weakSelf.toast) weakSelf.toast(error.localizedDescription);
+        return;
+      }
+      if (weakSelf.toast) weakSelf.toast([NSString stringWithFormat:@"已删除：%@", uri]);
+      [weakSelf reload];
     }];
-  }]];
-  UIResponder *r = self;
-  UIViewController *vc = nil;
-  while (r) {
-    if ([r isKindOfClass:UIViewController.class]) { vc = (UIViewController *)r; break; }
-    r = r.nextResponder;
-  }
-  [vc presentViewController:a animated:YES completion:nil];
+  }];
 }
 
 @end

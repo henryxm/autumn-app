@@ -36,10 +36,10 @@ void main() {
     );
   });
 
-  test('tryParseBaseUrl vc deep link', () {
+  test('tryParseBaseUrl custom-scheme deep link', () {
     expect(
       AutumnOpsDiscover.tryParseBaseUrl(
-        'crchat://vc/autumnops?base=https%3A%2F%2Fa.example.com',
+        'myapp://vc/autumnops?base=https%3A%2F%2Fa.example.com',
       ),
       'https://a.example.com',
     );

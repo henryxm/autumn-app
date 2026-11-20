@@ -6,13 +6,13 @@ import 'package:flutter/widgets.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 
-/// 宿主注入：将 AutumnOps content 发到超然信会话（转发选人等）。
+/// 宿主注入：将 AutumnOps content 发到宿主 IM / 选人流程。
 typedef AutumnOpsShareToChat = Future<bool> Function(
   BuildContext context,
   Map<String, dynamic> content,
 );
 
-/// 产品宿主在启动时赋值；未赋值时管理页「分享到聊天」不可用。
+/// 第三方宿主在启动时赋值；未赋值时管理页「分享到聊天」不可用。
 abstract final class AutumnOpsShareHooks {
   static AutumnOpsShareToChat? toChat;
 }
@@ -37,7 +37,7 @@ Future<Map<String, dynamic>> buildAutumnOpsMessageContent({
   );
 }
 
-/// 分享到超然信聊天（依赖 [AutumnOpsShareHooks.toChat]）。
+/// 分享到宿主聊天（依赖 [AutumnOpsShareHooks.toChat]）。
 Future<bool> shareAutumnOpsToChat({
   required BuildContext context,
   required AutumnOpsClient client,
@@ -86,7 +86,7 @@ Future<File> exportAutumnOpsCredentialFile({
     text:
         'Autumn 运维凭证\n'
         '站点：${site.baseUrl}\n'
-        '导入：设分享口令后在运维管理页选择本文件导入；超然信会话请用「分享到聊天」。\n'
+        '导入：设分享口令后在运维管理页选择本文件导入；宿主会话请用「分享到聊天」。\n'
         '口令不会写进文件。',
   );
   return f;

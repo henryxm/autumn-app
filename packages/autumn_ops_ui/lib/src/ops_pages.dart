@@ -693,7 +693,7 @@ class _OpsAddSitePageState extends State<OpsAddSitePage> {
           children: [
             Text(
               '选择他机导出的运维凭证文件，再填导出时的分享口令。给同事新设备请用「认领码」。'
-              '超然信会话请点开 AutumnOps 运维卡导入。',
+              '宿主聊天会话请点开 AutumnOps 运维卡导入。',
               style: hintStyle,
             ),
             const SizedBox(height: 10),

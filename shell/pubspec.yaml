@@ -11,7 +11,7 @@ dependencies:
     sdk: flutter
   autumn_ops_ui:
     path: ../packages/autumn_ops_ui
-  # 显式拉齐鸿蒙 federated 插件（与 chaoranxin / CPF-Flutter 一致）
+  # 显式拉齐鸿蒙 federated 插件（与 CPF-Flutter / 宿主工程保持一致）
   path_provider:
     git:
       url: &flutter_packages_cpf_git https://gitcode.com/CPF-Flutter/flutter_packages.git

@@ -635,7 +635,7 @@ class _OpsManageSitePageState extends State<OpsManageSitePage>
         _sectionCard(
           title: '站点发现页',
           body: discoverOn
-              ? '已打开：浏览器可访问发现页，扫码或点开链接即可引导安装超然信并添加本站。证书绑定成功后会自动关闭。'
+              ? '已打开：浏览器可访问发现页，扫码或点开链接即可引导安装运维客户端（如超然信）并添加本站。证书绑定成功后会自动关闭。'
               : '已关闭：浏览器访问发现页将如同不存在（404），避免被探测；不影响本 App 内探测与运维。',
           children: [
             Row(
@@ -714,8 +714,8 @@ class _OpsManageSitePageState extends State<OpsManageSitePage>
         _sectionCard(
           title: '分享管理入口',
           body: discoverOn
-              ? '生成发现链接。他人用超然信扫码或点开后可自动探测本站运维能力。'
-              : '发现页当前已关闭。仍可复制链接供超然信打开；浏览器打开将得到 404。',
+              ? '生成发现链接。他人用运维客户端（如超然信）扫码或点开后可自动探测本站运维能力。'
+              : '发现页当前已关闭。仍可复制链接供运维客户端打开；浏览器打开将得到 404。',
           children: [
             SelectableText(
               AutumnOpsDiscover.shareUrlForBase(site.baseUrl),
@@ -1186,7 +1186,7 @@ class _OpsManageSitePageState extends State<OpsManageSitePage>
       return;
     }
     await Share.share(
-      'Autumn 运维发现入口（请用超然信打开）：\n$url',
+      'Autumn 运维发现入口（请用运维客户端打开，如超然信 https://chaoran.xin/）：\n$url',
       subject: 'Autumn 运维',
     );
   }
@@ -1411,7 +1411,7 @@ class _OpsManageSitePageState extends State<OpsManageSitePage>
         const SizedBox(height: 12),
         _sectionCard(
           title: '② 分享运维密钥（同证）',
-          body: '用分享口令包裹本机运维密钥后发到超然信会话（消息类型 AutumnOps，同一 certId）。'
+          body: '用分享口令包裹本机运维密钥后发到宿主聊天会话（消息类型 AutumnOps，同一 certId）。'
               '对端点开运维卡并输入同一口令即可导入。口令不当场写入消息。'
               '给同事单独一台机请用上方① 认领码。',
           children: [

@@ -15,11 +15,12 @@
   return [self tryParseBaseUrl:raw forceHttpBase:NO];
 }
 
-+ (nullable NSString *)_parseVcAutumnOps:(NSString *)s {
+/// Host deep link: `{anyNonHttpScheme}://…/autumnops?base=` (or host `vc` + path `autumnops`).
++ (nullable NSString *)_parseCustomSchemeAutumnOps:(NSString *)s {
   NSURLComponents *c = [NSURLComponents componentsWithString:s];
   if (!c) return nil;
   NSString *scheme = c.scheme.lowercaseString;
-  BOOL app = [scheme isEqualToString:@"crchat"] || [scheme isEqualToString:@"xsign"] || [scheme isEqualToString:@"chaoranxin"];
+  if (!scheme.length || [scheme isEqualToString:@"http"] || [scheme isEqualToString:@"https"]) return nil;
   NSMutableArray *segs = [NSMutableArray array];
   for (NSString *p in [c.path componentsSeparatedByString:@"/"]) {
     if (p.length) [segs addObject:p];
@@ -33,7 +34,7 @@
       break;
     }
   }
-  if (app && isOps && queryBase.length) return [queryBase stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+  if (isOps && queryBase.length) return [queryBase stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
   return nil;
 }
 
@@ -46,8 +47,8 @@
 + (nullable NSString *)tryParseBaseUrl:(NSString *)raw forceHttpBase:(BOOL)forceHttpBase {
   NSString *s = [raw stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
   if (!s.length) return nil;
-  NSString *vc = [self _parseVcAutumnOps:s];
-  if (vc) return [AutumnOpsSiteEntry normalizeBaseUrl:vc];
+  NSString *custom = [self _parseCustomSchemeAutumnOps:s];
+  if (custom) return [AutumnOpsSiteEntry normalizeBaseUrl:custom];
   NSURL *uri = [NSURL URLWithString:s];
   if (!uri || (!([uri.scheme isEqualToString:@"http"] || [uri.scheme isEqualToString:@"https"]))) return nil;
   NSString *pathNorm = uri.path ?: @"";

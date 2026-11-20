@@ -2,7 +2,8 @@
 
 与 [PACKAGES_RELEASE_AND_CONSUMER.md](PACKAGES_RELEASE_AND_CONSUMER.md) 对称：Dart packages 给 Flutter；**同一 annotated tag `ops-v*`** 同时覆盖 `ios/AutumnOpsCore` + `ios/AutumnOpsUI`。
 
-协议 SSOT：Autumn `docs/AI_OPS_CERT.md`；Dart `packages/autumn_ops` 为客户端参考实现。
+协议 SSOT：Autumn `docs/AI_OPS_CERT.md`；Dart `packages/autumn_ops` 为客户端参考实现。  
+用法总览见仓库根 [README.md](../README.md)。
 
 ---
 
@@ -22,7 +23,7 @@ autumn-app/
 | `AutumnOpsCore` | T0–T3 API、Security.framework 密码学、Keychain / 站点列表 | Foundation, Security |
 | `AutumnOpsUI` | UIKit Gate + 管理页 | AutumnOpsCore, Masonry |
 
-**禁止**再链 OpenSSL（避免与 XSign `OpenSSL-Universal` 冲突）。
+**建议**仅用系统 Security.framework；若宿主已链其它 OpenSSL 发行版，勿再为 Ops 额外链一套，以免符号冲突。
 
 ---
 
@@ -31,13 +32,9 @@ autumn-app/
 ### 2.1 本机 path 联调
 
 ```ruby
-# XSVideo/Podfile（仓相对路径按本机布局调整）
-pod 'AutumnOpsCore', :path => '../Studio/autumn-app/ios/AutumnOpsCore'
-pod 'AutumnOpsUI',   :path => '../Studio/autumn-app/ios/AutumnOpsUI'
-
-# XSign/XSign/Podfile
-pod 'AutumnOpsCore', :path => '../../Studio/autumn-app/ios/AutumnOpsCore'
-pod 'AutumnOpsUI',   :path => '../../Studio/autumn-app/ios/AutumnOpsUI'
+# Podfile（路径按本机布局调整）
+pod 'AutumnOpsCore', :path => '../path/to/autumn-app/ios/AutumnOpsCore'
+pod 'AutumnOpsUI',   :path => '../path/to/autumn-app/ios/AutumnOpsUI'
 ```
 
 ```bash
@@ -61,15 +58,24 @@ CocoaPods **不支持** Flutter 式 `git + path` 子目录一条声明。发版�
 
 ## 3. 宿主薄壳（必须）
 
-只挂入口，**不写运维业务**：
+只挂入口，**不写运维业务**。推荐在宿主提供一个小的 `*Host` 类，例如：
 
-| API | 作用 |
-|-----|------|
-| `AutumnOpsNativeHost.installShareHooks` | App 启动一次；设 `AutumnOpsUIConfig.deviceLabel`（`ios-xsvideo` / `ios-xsign`）+ `AutumnOpsShareHooks.toChat` |
-| `openAutumnOpsContent:` / `openAutumnOpsMsgRaw:` | 气泡 / 收藏点开 Gate |
-| `tryOpenDiscoverURL:` | `/ops/discover`、`crchat://vc/autumnops?base=`（及 xsign/chaoranxin scheme） |
+| 能力 | 作用 |
+|------|------|
+| 启动时配置 | `AutumnOpsUIConfig.deviceLabel`（如 `ios-<your-app>`）+ `AutumnOpsShareHooks.toChat` |
+| 打开载荷 | 气泡 / 收藏点开 → Gate（`open…Content:` / 原始 JSON） |
+| 发现 URL | `{base}/ops/discover`；以及宿主注册的自定义 URL scheme（`AutumnOpsDiscover` 会识别常见 `…://…/autumnops?base=` 形态） |
 
-`toChat`：选人 → `VideoChatManager sendMsg:@"AutumnOps" …`。
+`toChat`：由宿主实现选人 → 发送类型为 `AutumnOps`（或你与服务端约定的等价类型）的消息。
+
+示例伪代码：
+
+```objc
+[AutumnOpsUIConfig shared].deviceLabel = @"ios-myapp";
+[AutumnOpsShareHooks setToChat:^(NSDictionary *content, void (^done)(BOOL)) {
+  // 打开选人 → 发 IM → done(YES/NO)
+}];
+```
 
 ---
 
@@ -82,14 +88,14 @@ CocoaPods **不支持** Flutter 式 `git + path` 子目录一条声明。发版�
 - [ ] probe → OpsEnroll 入驻 → 管理六 Tab 可读可改
 - [ ] 认领码：A issue → B claim → 两证可独立吊销
 - [ ] 分享口令 → 分享到聊天 → 对端气泡进 Gate → importWrapped
-- [ ] **Flutter 签发分享证 → XSVideo/XSign Gate 导入 + ensureSession 成功**（不得 `SecKeyCreateWithData failed`）
+- [ ] **Flutter 签发分享证 → 本 iOS 宿主 Gate 导入 + ensureSession 成功**（不得 `SecKeyCreateWithData failed`）
 - [ ] 发现 URL / 深链 / 扫码进 Gate.discover
 - [ ] 管理 IP / clearToken / 删当前 IP 门禁与 Flutter 一致
-- [ ] XSVideo + XSign：运维卡点开 **不再** toast「请在超然信中打开运维」
-- [ ] `Podfile.lock` 可复现；跟版步骤已写入宿主 `docs/AUTUMN_OPS_POD.md`
+- [ ] 运维消息 / 收藏入口已挂到 Gate（不再是宿主侧占位 toast）
+- [ ] `Podfile.lock` 可复现；跟版步骤已写入宿主文档
 
 ---
 
 ## 6. 回滚
 
-宿主去掉 Pod 与 `AutumnOpsNativeHost` 调用，气泡恢复 toast（revert 挂载提交即可）。
+宿主去掉 Pod 与薄壳调用，恢复原先占位行为即可（revert 挂载提交）。

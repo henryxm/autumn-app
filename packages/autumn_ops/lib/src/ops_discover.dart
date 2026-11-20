@@ -24,7 +24,7 @@ abstract final class AutumnOpsDiscover {
   /// Accepts:
   /// - `https://host/ops/discover` (optional query/fragment)
   /// - `https://host/?autumn_ops=1` or `#autumn_ops`
-  /// - `crchat://vc/autumnops?base=` / `xsign://` / `chaoranxin://`
+  /// - 宿主自定义 scheme：`{scheme}://…/autumnops?base=`（任意非 http(s) scheme）
   ///
   /// Bare `http(s)://host` alone is **not** discover (avoid hijacking normal links).
   /// Callers that already know intent may set [forceHttpBase].
@@ -34,9 +34,9 @@ abstract final class AutumnOpsDiscover {
       return null;
     }
 
-    final vcBase = _parseVcAutumnOps(s);
-    if (vcBase != null) {
-      return OpsSiteEntry.normalizeBaseUrl(vcBase);
+    final customBase = _parseCustomSchemeAutumnOps(s);
+    if (customBase != null) {
+      return OpsSiteEntry.normalizeBaseUrl(customBase);
     }
 
     final Uri uri;
@@ -101,7 +101,8 @@ String _originWithPath(Uri uri) {
   return OpsSiteEntry.normalizeBaseUrl('$origin$path');
 }
 
-String? _parseVcAutumnOps(String s) {
+/// Host deep link: `{anyNonHttpScheme}://…/autumnops?base=` (or host `vc` + path `autumnops`).
+String? _parseCustomSchemeAutumnOps(String s) {
   final Uri uri;
   try {
     uri = Uri.parse(s);
@@ -109,9 +110,9 @@ String? _parseVcAutumnOps(String s) {
     return null;
   }
   final scheme = uri.scheme.toLowerCase();
-  final appScheme = scheme == 'crchat' ||
-      scheme == 'xsign' ||
-      scheme == 'chaoranxin';
+  if (scheme.isEmpty || scheme == 'http' || scheme == 'https') {
+    return null;
+  }
   final segs = uri.pathSegments.where((e) => e.isNotEmpty).toList();
   final hostVc = uri.host.toLowerCase() == 'vc';
   final isAutumnOpsPath = (hostVc && segs.isNotEmpty && segs.first == 'autumnops') ||
@@ -119,7 +120,7 @@ String? _parseVcAutumnOps(String s) {
   final queryBase = uri.queryParameters['base'] ??
       uri.queryParameters['url'] ??
       uri.queryParameters['u'];
-  if (appScheme && isAutumnOpsPath && queryBase != null && queryBase.trim().isNotEmpty) {
+  if (isAutumnOpsPath && queryBase != null && queryBase.trim().isNotEmpty) {
     return queryBase.trim();
   }
   return null;

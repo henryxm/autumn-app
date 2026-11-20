@@ -5,6 +5,7 @@
 #import "AutumnOpsPageChromeView.h"
 #import "AutumnOpsUIConfig.h"
 #import "AutumnOpsUITheme.h"
+#import "AutumnOpsUIControls.h"
 #import <AutumnOpsCore/AutumnOpsCore.h>
 #import <Masonry/Masonry.h>
 
@@ -12,7 +13,11 @@
 @property (nonatomic, copy, nullable) NSDictionary *content;
 @property (nonatomic, copy, nullable) NSString *rawURL;
 @property (nonatomic, strong) UILabel *statusLabel;
+@property (nonatomic, strong) UILabel *siteMetaLabel;
+@property (nonatomic, strong) UILabel *certMetaLabel;
+@property (nonatomic, strong) UIView *passBar;
 @property (nonatomic, strong) UITextField *passField;
+@property (nonatomic, strong) UIButton *passClearBtn;
 @property (nonatomic, strong) UIButton *importBtn;
 @property (nonatomic, strong) UIButton *addBtn;
 @property (nonatomic, strong) UIButton *sitesBtn;
@@ -41,17 +46,22 @@
 
 - (void)viewDidLoad {
   [super viewDidLoad];
-  self.view.backgroundColor = AutumnOpsUITheme.surface;
+  self.view.backgroundColor = UIColor.systemBackgroundColor;
   BOOL isPayload = self.rawURL.length == 0;
   NSString *title = isPayload ? @"导入运维凭证" : @"Autumn 运维发现";
   self.title = title;
   self.siteStore = [[AutumnOpsSiteStore alloc] initWithRootDirectory:[AutumnOpsSiteStore defaultRootDirectory]];
-  self.navigationItem.rightBarButtonItem = [[UIBarButtonItem alloc] initWithTitle:@"站点列表" style:UIBarButtonItemStylePlain target:self action:@selector(_openSites)];
+
+  UIImage *sitesImg = [AutumnOpsUIControls sitesListIconWithSize:22];
+  self.navigationItem.rightBarButtonItem =
+      [[UIBarButtonItem alloc] initWithImage:sitesImg style:UIBarButtonItemStylePlain target:self action:@selector(_openSites)];
+  self.navigationItem.rightBarButtonItem.accessibilityLabel = @"站点列表";
 
   UIButton *sites = [UIButton buttonWithType:UIButtonTypeSystem];
-  [sites setTitle:@"站点列表" forState:UIControlStateNormal];
-  [sites setTitleColor:AutumnOpsUITheme.primary forState:UIControlStateNormal];
-  sites.titleLabel.font = [UIFont systemFontOfSize:16];
+  [sites setImage:sitesImg forState:UIControlStateNormal];
+  sites.tintColor = UIColor.labelColor;
+  sites.imageView.contentMode = UIViewContentModeScaleAspectFit;
+  sites.accessibilityLabel = @"站点列表";
   [sites addTarget:self action:@selector(_openSites) forControlEvents:UIControlEventTouchUpInside];
   _pageChrome = [AutumnOpsPageChromeView installOnViewController:self title:title rightItems:@[sites]];
   UIView *top = _pageChrome;
@@ -59,36 +69,68 @@
   _statusLabel = [UILabel new];
   _statusLabel.numberOfLines = 0;
   _statusLabel.font = [UIFont systemFontOfSize:15];
-  _passField = [UITextField new];
-  _passField.borderStyle = UITextBorderStyleRoundedRect;
-  _passField.secureTextEntry = YES;
-  _passField.placeholder = @"分享口令";
-  _passField.hidden = YES;
-  _importBtn = [UIButton buttonWithType:UIButtonTypeSystem];
-  [_importBtn setTitle:@"导入并进入" forState:UIControlStateNormal];
-  _importBtn.hidden = YES;
-  [_importBtn addTarget:self action:@selector(_importTapped) forControlEvents:UIControlEventTouchUpInside];
-  _addBtn = [UIButton buttonWithType:UIButtonTypeSystem];
-  [_addBtn setTitle:@"继续添加 / 入驻" forState:UIControlStateNormal];
-  _addBtn.hidden = YES;
-  [_addBtn addTarget:self action:@selector(_addSite) forControlEvents:UIControlEventTouchUpInside];
-  _sitesBtn = [UIButton buttonWithType:UIButtonTypeSystem];
-  [_sitesBtn setTitle:@"打开站点列表" forState:UIControlStateNormal];
-  _sitesBtn.hidden = YES;
-  [_sitesBtn addTarget:self action:@selector(_openSites) forControlEvents:UIControlEventTouchUpInside];
-  _spinner = [[UIActivityIndicatorView alloc] initWithActivityIndicatorStyle:UIActivityIndicatorViewStyleMedium];
+  _statusLabel.textColor = AutumnOpsUITheme.onSurface;
 
-  _bodyStack = [[UIStackView alloc] initWithArrangedSubviews:@[_statusLabel, _passField, _importBtn, _addBtn, _sitesBtn, _spinner]];
+  _siteMetaLabel = [UILabel new];
+  _siteMetaLabel.numberOfLines = 0;
+  _siteMetaLabel.font = [UIFont systemFontOfSize:14];
+  _siteMetaLabel.textColor = AutumnOpsUITheme.onSurface;
+  _siteMetaLabel.hidden = YES;
+
+  _certMetaLabel = [UILabel new];
+  _certMetaLabel.numberOfLines = 0;
+  _certMetaLabel.font = [UIFont systemFontOfSize:13];
+  _certMetaLabel.textColor = AutumnOpsUITheme.onSurfaceVariant;
+  _certMetaLabel.hidden = YES;
+
+  UITextField *passField = nil;
+  UIButton *clearBtn = nil;
+  UIButton *importBtn = nil;
+  _passBar = [AutumnOpsUIControls tokenInputBarWithField:&passField
+                                             clearButton:&clearBtn
+                                            actionButton:&importBtn
+                                                  target:self
+                                                  action:@selector(_importTapped)];
+  _passField = passField;
+  _passClearBtn = clearBtn;
+  _importBtn = importBtn;
+  _passField.attributedPlaceholder = [[NSAttributedString alloc] initWithString:@"分享口令"
+      attributes:@{NSForegroundColorAttributeName : [AutumnOpsUITheme.onSurfaceVariant colorWithAlphaComponent:0.7]}];
+  [_importBtn setTitle:@"导入并进入" forState:UIControlStateNormal];
+  _passBar.hidden = YES;
+  [_passClearBtn addTarget:self action:@selector(_clearPass) forControlEvents:UIControlEventTouchUpInside];
+  [_passField addTarget:self action:@selector(_passEdited) forControlEvents:UIControlEventEditingChanged];
+
+  _addBtn = [AutumnOpsUIControls buttonWithTitle:@"继续添加 / 入驻" style:AutumnOpsButtonStyleFilled target:self action:@selector(_addSite)];
+  _addBtn.hidden = YES;
+  _sitesBtn = [AutumnOpsUIControls buttonWithTitle:@"打开站点列表" style:AutumnOpsButtonStyleOutlined target:self action:@selector(_openSites)];
+  _sitesBtn.hidden = YES;
+  _spinner = [[UIActivityIndicatorView alloc] initWithActivityIndicatorStyle:UIActivityIndicatorViewStyleMedium];
+  _spinner.hidesWhenStopped = YES;
+
+  _bodyStack = [[UIStackView alloc] initWithArrangedSubviews:@[
+    _statusLabel, _siteMetaLabel, _certMetaLabel, _passBar, _addBtn, _sitesBtn, _spinner
+  ]];
   _bodyStack.axis = UILayoutConstraintAxisVertical;
   _bodyStack.spacing = 12;
+  _bodyStack.alignment = UIStackViewAlignmentFill;
   [self.view addSubview:_bodyStack];
   [_bodyStack mas_makeConstraints:^(MASConstraintMaker *make) {
-    make.left.right.equalTo(self.view).inset(20);
-    if (top) make.top.equalTo(top.mas_bottom).offset(24);
-    else make.top.equalTo(self.view.mas_safeAreaLayoutGuideTop).offset(24);
+    make.left.right.equalTo(self.view).inset(16);
+    if (top) make.top.equalTo(top.mas_bottom).offset(16);
+    else make.top.equalTo(self.view.mas_safeAreaLayoutGuideTop).offset(16);
   }];
 
   dispatch_async(dispatch_get_main_queue(), ^{ [self _bootstrap]; });
+}
+
+- (void)_clearPass {
+  self.passField.text = @"";
+  [self _passEdited];
+}
+
+- (void)_passEdited {
+  self.passClearBtn.hidden = self.passField.text.length == 0;
 }
 
 - (void)_setStatus:(NSString *)s { self.statusLabel.text = s; }
@@ -150,14 +192,22 @@
     }
   }
   [self.spinner stopAnimating];
+  if (baseHint.length) {
+    self.siteMetaLabel.text = [NSString stringWithFormat:@"站点：%@", baseHint];
+    self.siteMetaLabel.hidden = NO;
+  }
+  if (certId.length) {
+    self.certMetaLabel.text = [NSString stringWithFormat:@"证书：%@", certId];
+    self.certMetaLabel.hidden = NO;
+  }
   if (!baseHint.length) {
     [self _setStatus:@"凭证未含站点地址，请改用「添加站点」流程"];
     self.addBtn.hidden = NO;
     return;
   }
   [self _setStatus:@"需要分享口令以导入运维证书"];
-  self.passField.hidden = NO;
-  self.importBtn.hidden = NO;
+  self.passBar.hidden = NO;
+  [self _passEdited];
 }
 
 - (void)_importTapped {

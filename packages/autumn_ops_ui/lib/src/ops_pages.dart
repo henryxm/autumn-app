@@ -50,8 +50,11 @@ class _OpsSitesPageState extends State<OpsSitesPage> {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return Scaffold(
+      backgroundColor: scheme.surface,
       appBar: AppBar(
+        centerTitle: true,
         title: const Text('Autumn 运维'),
         actions: [
           IconButton(
@@ -71,14 +74,18 @@ class _OpsSitesPageState extends State<OpsSitesPage> {
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _sites.isEmpty
-              ? const Center(
+              ? Center(
                   child: Padding(
-                    padding: EdgeInsets.all(24),
+                    padding: const EdgeInsets.all(24),
                     child: Text(
                       '还没有站点。\n'
                       '点右上角「+」：① 首次口令 ② 认领码（文字）③ 导入运维凭证文件。',
                       textAlign: TextAlign.center,
-                      style: TextStyle(height: 1.5),
+                      style: TextStyle(
+                        height: 1.5,
+                        fontSize: 15,
+                        color: scheme.onSurfaceVariant,
+                      ),
                     ),
                   ),
                 )
@@ -87,28 +94,13 @@ class _OpsSitesPageState extends State<OpsSitesPage> {
                   itemCount: _sites.length,
                   itemBuilder: (ctx, i) {
                     final s = _sites[i];
-                    final scheme = Theme.of(context).colorScheme;
                     return Card(
                       elevation: 0,
                       margin: const EdgeInsets.only(bottom: 10),
                       color: scheme.surfaceContainerHighest.withValues(alpha: 0.5),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                      child: ListTile(
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                        title: Text(
-                          s.title.isEmpty ? s.baseUrl : s.title,
-                          style: const TextStyle(fontWeight: FontWeight.w600),
-                        ),
-                        subtitle: Padding(
-                          padding: const EdgeInsets.only(top: 4),
-                          child: Text(
-                            '${s.baseUrl}\n'
-                            '${s.enrolled ? '本机已入驻' : '本机未入驻'}'
-                            '${s.serverFingerprint != null ? ' · 指纹 ${s.serverFingerprint}' : ''}',
-                            style: TextStyle(height: 1.35, color: scheme.onSurfaceVariant),
-                          ),
-                        ),
-                        isThreeLine: true,
+                      clipBehavior: Clip.antiAlias,
+                      child: InkWell(
                         onTap: () async {
                           await Navigator.of(context).push(
                             MaterialPageRoute<void>(
@@ -117,35 +109,68 @@ class _OpsSitesPageState extends State<OpsSitesPage> {
                           );
                           await _reload();
                         },
-                        trailing: IconButton(
-                          icon: const Icon(Icons.delete_outline),
-                          tooltip: '从本机移除',
-                          onPressed: () async {
-                            final ok = await showDialog<bool>(
-                              context: context,
-                              builder: (d) => AlertDialog(
-                                title: const Text('删除站点'),
-                                content: Text(
-                                  '从本机列表移除「${s.title.isEmpty ? s.baseUrl : s.title}」？'
-                                  '不会自动吊销服务端证书。',
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 12, 8, 12),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.center,
+                            children: [
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      s.title.isEmpty ? s.baseUrl : s.title,
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.w600,
+                                        fontSize: 16,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      '${s.baseUrl}\n'
+                                      '${s.enrolled ? '本机已入驻' : '本机未入驻'}'
+                                      '${s.serverFingerprint != null && s.serverFingerprint!.isNotEmpty ? ' · 指纹 ${s.serverFingerprint}' : ''}',
+                                      style: TextStyle(
+                                        height: 1.35,
+                                        fontSize: 13,
+                                        color: scheme.onSurfaceVariant,
+                                      ),
+                                    ),
+                                  ],
                                 ),
-                                actions: [
-                                  TextButton(
-                                    onPressed: () => Navigator.pop(d, false),
-                                    child: const Text('取消'),
-                                  ),
-                                  FilledButton(
-                                    onPressed: () => Navigator.pop(d, true),
-                                    child: const Text('删除'),
-                                  ),
-                                ],
                               ),
-                            );
-                            if (ok == true) {
-                              await _store?.removeSite(s.id);
-                              await _reload();
-                            }
-                          },
+                              IconButton(
+                                icon: const Icon(Icons.delete_outline),
+                                tooltip: '从本机移除',
+                                onPressed: () async {
+                                  final ok = await showDialog<bool>(
+                                    context: context,
+                                    builder: (d) => AlertDialog(
+                                      title: const Text('删除站点'),
+                                      content: Text(
+                                        '从本机列表移除「${s.title.isEmpty ? s.baseUrl : s.title}」？'
+                                        '不会自动吊销服务端证书。',
+                                      ),
+                                      actions: [
+                                        TextButton(
+                                          onPressed: () => Navigator.pop(d, false),
+                                          child: const Text('取消'),
+                                        ),
+                                        FilledButton(
+                                          onPressed: () => Navigator.pop(d, true),
+                                          child: const Text('删除'),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                  if (ok == true) {
+                                    await _store?.removeSite(s.id);
+                                    await _reload();
+                                  }
+                                },
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                     );

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:share_plus/share_plus.dart';
 
+import 'ops_chrome.dart';
 import 'ops_payload_io.dart';
 import 'ops_fused_field.dart';
 import 'ops_ip_list_panel.dart';
@@ -525,16 +526,13 @@ class _OpsManageSitePageState extends State<OpsManageSitePage>
     final site = _site;
     return Scaffold(
       appBar: AppBar(
+        centerTitle: true,
         title: Text(site?.title ?? '站点管理'),
         actions: [
-          TextButton(
-            onPressed: _busy ? null : _goSiteList,
-            child: const Text('站点'),
-          ),
           IconButton(
-            onPressed: _busy ? null : _refreshRemote,
-            icon: const Icon(Icons.refresh),
-            tooltip: '刷新',
+            onPressed: _busy ? null : _goSiteList,
+            icon: const OpsSitesListIcon(size: 22),
+            tooltip: '站点列表',
           ),
         ],
         bottom: site == null
@@ -562,8 +560,9 @@ class _OpsManageSitePageState extends State<OpsManageSitePage>
           ? Center(child: Text(_status))
           : Column(
               children: [
+                // 顶栏状态条跟主题 surface，勿用 highest 卡片灰（嵌入宿主如 XSVideo 时更协调）
                 Material(
-                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                  color: Theme.of(context).colorScheme.surface,
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                     child: Row(
@@ -573,7 +572,11 @@ class _OpsManageSitePageState extends State<OpsManageSitePage>
                             _busy && _status.isEmpty
                                 ? '正在连接…'
                                 : (_busy ? '处理中 · $_status' : _status),
-                            style: const TextStyle(fontSize: 13, height: 1.3),
+                            style: TextStyle(
+                              fontSize: 13,
+                              height: 1.3,
+                              color: Theme.of(context).colorScheme.onSurface,
+                            ),
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
                           ),
@@ -614,7 +617,9 @@ class _OpsManageSitePageState extends State<OpsManageSitePage>
     final gateOn = _adminIpEnable == true;
     final discoverOn = _discoverEnabled != false;
     final scheme = Theme.of(context).colorScheme;
-    return ListView(
+    return RefreshIndicator(
+      onRefresh: _refreshRemote,
+      child: ListView(
       padding: const EdgeInsets.all(16),
       children: [
         _sectionCard(
@@ -750,6 +755,7 @@ class _OpsManageSitePageState extends State<OpsManageSitePage>
           label: const Text('丢钥 / 无法入驻时如何恢复'),
         ),
       ],
+      ),
     );
   }
 
@@ -1271,7 +1277,9 @@ class _OpsManageSitePageState extends State<OpsManageSitePage>
 
   Widget _buildCerts(OpsSiteEntry site) {
     final scheme = Theme.of(context).colorScheme;
-    return ListView(
+    return RefreshIndicator(
+      onRefresh: _refreshRemote,
+      child: ListView(
       padding: const EdgeInsets.all(16),
       children: [
         _sectionCard(
@@ -1474,6 +1482,7 @@ class _OpsManageSitePageState extends State<OpsManageSitePage>
           ],
         ),
       ],
+      ),
     );
   }
 }

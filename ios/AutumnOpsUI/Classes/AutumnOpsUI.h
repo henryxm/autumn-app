@@ -2,6 +2,7 @@
 
 #import "AutumnOpsShareHooks.h"
 #import "AutumnOpsUIConfig.h"
+#import "AutumnOpsEntry.h"
 #import "AutumnOpsGateViewController.h"
 #import "AutumnOpsSitesViewController.h"
 #import "AutumnOpsAddSiteViewController.h"

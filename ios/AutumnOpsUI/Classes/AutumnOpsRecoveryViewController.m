@@ -25,7 +25,7 @@ static NSString * const kAutumnOpsRecoverySQL =
 
 - (void)viewDidLoad {
   [super viewDidLoad];
-  self.view.backgroundColor = AutumnOpsUITheme.surface;
+  self.view.backgroundColor = UIColor.systemBackgroundColor;
   NSString *title = self.siteTitle.length ? [NSString stringWithFormat:@"恢复：%@", self.siteTitle] : @"恢复运维证书";
   self.title = title;
   _pageChrome = [AutumnOpsPageChromeView installOnViewController:self title:title rightItems:nil];

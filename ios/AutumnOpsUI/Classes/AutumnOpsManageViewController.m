@@ -34,9 +34,7 @@ typedef NS_ENUM(NSInteger, AutumnOpsClearTokenUI) {
 @property (nonatomic, strong) UILabel *statusLabel;
 @property (nonatomic, strong) UIActivityIndicatorView *spinner;
 @property (nonatomic, strong) UIBarButtonItem *sitesBarItem;
-@property (nonatomic, strong) UIBarButtonItem *refreshBarItem;
 @property (nonatomic, strong) UIButton *chromeSitesBtn;
-@property (nonatomic, strong) UIButton *chromeRefreshBtn;
 
 @property (nonatomic, strong) UIView *overviewPanel;
 @property (nonatomic, strong) UIScrollView *overviewScroll;
@@ -129,25 +127,19 @@ typedef NS_ENUM(NSInteger, AutumnOpsClearTokenUI) {
   NSString *title = self.siteEntry.title.length ? self.siteEntry.title : @"站点管理";
   self.title = title;
 
-  self.sitesBarItem = [[UIBarButtonItem alloc] initWithTitle:@"站点" style:UIBarButtonItemStylePlain target:self action:@selector(_goSites)];
-  self.refreshBarItem = [[UIBarButtonItem alloc] initWithBarButtonSystemItem:UIBarButtonSystemItemRefresh target:self action:@selector(_refreshAll)];
-  self.navigationItem.rightBarButtonItems = @[self.refreshBarItem, self.sitesBarItem];
+  UIImage *sitesImg = [AutumnOpsUIControls sitesListIconWithSize:22];
+  self.sitesBarItem = [[UIBarButtonItem alloc] initWithImage:sitesImg style:UIBarButtonItemStylePlain target:self action:@selector(_goSites)];
+  self.sitesBarItem.accessibilityLabel = @"站点列表";
+  self.navigationItem.rightBarButtonItems = @[self.sitesBarItem];
 
   _chromeSitesBtn = [UIButton buttonWithType:UIButtonTypeSystem];
-  [_chromeSitesBtn setTitle:@"站点" forState:UIControlStateNormal];
-  [_chromeSitesBtn setTitleColor:AutumnOpsUITheme.primary forState:UIControlStateNormal];
-  _chromeSitesBtn.titleLabel.font = [UIFont systemFontOfSize:16 weight:UIFontWeightRegular];
+  [_chromeSitesBtn setImage:sitesImg forState:UIControlStateNormal];
+  _chromeSitesBtn.tintColor = UIColor.labelColor;
+  _chromeSitesBtn.imageView.contentMode = UIViewContentModeScaleAspectFit;
+  _chromeSitesBtn.accessibilityLabel = @"站点列表";
   [_chromeSitesBtn addTarget:self action:@selector(_goSites) forControlEvents:UIControlEventTouchUpInside];
-  _chromeRefreshBtn = [UIButton buttonWithType:UIButtonTypeSystem];
-  UIImageSymbolConfiguration *refCfg =
-      [UIImageSymbolConfiguration configurationWithPointSize:20 weight:UIImageSymbolWeightRegular];
-  [_chromeRefreshBtn setImage:[UIImage systemImageNamed:@"arrow.clockwise" withConfiguration:refCfg]
-                     forState:UIControlStateNormal];
-  _chromeRefreshBtn.tintColor = AutumnOpsUITheme.onSurface;
-  _chromeRefreshBtn.imageView.contentMode = UIViewContentModeScaleAspectFit;
-  [_chromeRefreshBtn addTarget:self action:@selector(_refreshAll) forControlEvents:UIControlEventTouchUpInside];
-  // 对齐 Flutter AppBar actions：TextButton「站点」+ IconButton refresh
-  _pageChrome = [AutumnOpsPageChromeView installOnViewController:self title:title rightItems:@[_chromeSitesBtn, _chromeRefreshBtn]];
+  // 对齐 Flutter：微信小程序式圆环+中心点「回到站点列表」；刷新改为概览/证书下拉
+  _pageChrome = [AutumnOpsPageChromeView installOnViewController:self title:title rightItems:@[_chromeSitesBtn]];
   UIView *topAnchorView = _pageChrome;
   if (!_pageChrome) {
     // 系统栏可见：保留 navigationItem
@@ -158,11 +150,12 @@ typedef NS_ENUM(NSInteger, AutumnOpsClearTokenUI) {
   [_tabs addTarget:self action:@selector(_tabChanged) forControlEvents:UIControlEventValueChanged];
 
   _statusBar = [UIView new];
-  _statusBar.backgroundColor = AutumnOpsUITheme.surfaceContainerHighest;
+  // 轻量系统次级底，随明暗适配；不用固定 M3 卡片灰
+  _statusBar.backgroundColor = UIColor.secondarySystemBackgroundColor;
   _statusLabel = [UILabel new];
   _statusLabel.numberOfLines = 2;
   _statusLabel.font = [UIFont systemFontOfSize:13];
-  _statusLabel.textColor = AutumnOpsUITheme.onSurface;
+  _statusLabel.textColor = UIColor.labelColor;
   _spinner = [[UIActivityIndicatorView alloc] initWithActivityIndicatorStyle:UIActivityIndicatorViewStyleMedium];
   [_statusBar addSubview:_statusLabel];
   [_statusBar addSubview:_spinner];
@@ -232,9 +225,7 @@ typedef NS_ENUM(NSInteger, AutumnOpsClearTokenUI) {
 - (void)_updateChromeEnabled {
   BOOL enabled = self.busyDepth == 0;
   self.sitesBarItem.enabled = enabled;
-  self.refreshBarItem.enabled = enabled;
   [AutumnOpsUIControls setControl:self.chromeSitesBtn enabled:enabled];
-  [AutumnOpsUIControls setControl:self.chromeRefreshBtn enabled:enabled];
   [AutumnOpsUIControls setControl:self.discoverActionBtn enabled:enabled];
   [AutumnOpsUIControls setControl:self.gateActionBtn enabled:enabled];
   [AutumnOpsUIControls setControl:self.claimBtn enabled:enabled];
@@ -297,6 +288,9 @@ typedef NS_ENUM(NSInteger, AutumnOpsClearTokenUI) {
   _overviewPanel = [UIView new];
   _overviewScroll = [UIScrollView new];
   _overviewScroll.alwaysBounceVertical = YES;
+  UIRefreshControl *overviewRC = [UIRefreshControl new];
+  [overviewRC addTarget:self action:@selector(_pullRefreshAll) forControlEvents:UIControlEventValueChanged];
+  _overviewScroll.refreshControl = overviewRC;
   _overviewStack = [[UIStackView alloc] init];
   _overviewStack.axis = UILayoutConstraintAxisVertical;
   _overviewStack.spacing = 12;
@@ -475,6 +469,9 @@ typedef NS_ENUM(NSInteger, AutumnOpsClearTokenUI) {
   certTop.axis = UILayoutConstraintAxisVertical;
   certTop.spacing = 8;
   _certTable = [self _table];
+  UIRefreshControl *certRC = [UIRefreshControl new];
+  [certRC addTarget:self action:@selector(_pullRefreshAll) forControlEvents:UIControlEventValueChanged];
+  _certTable.refreshControl = certRC;
   [_certPanel addSubview:certTop];
   [_certPanel addSubview:_certTable];
   [certTop mas_makeConstraints:^(MASConstraintMaker *make) {
@@ -489,6 +486,10 @@ typedef NS_ENUM(NSInteger, AutumnOpsClearTokenUI) {
 - (UIView *)_ipPanelKind:(NSInteger)kind {
   UIView *panel = [UIView new];
   UITableView *table = [self _table];
+  UIRefreshControl *ipRC = [UIRefreshControl new];
+  ipRC.tag = kind;
+  [ipRC addTarget:self action:@selector(_pullRefreshIp:) forControlEvents:UIControlEventValueChanged];
+  table.refreshControl = ipRC;
   UIButton *add = [UIButton buttonWithType:UIButtonTypeSystem];
   [add setTitle:kind == 2 ? @"添加黑名单 IP" : @"添加本机/指定 IP" forState:UIControlStateNormal];
   add.tag = kind;
@@ -539,17 +540,43 @@ typedef NS_ENUM(NSInteger, AutumnOpsClearTokenUI) {
 
 #pragma mark - Refresh
 
+- (void)_pullRefreshAll {
+  [self _refreshAll];
+}
+
+- (void)_pullRefreshIp:(UIRefreshControl *)rc {
+  [self _loadIpKind:rc.tag];
+}
+
+- (void)_endGlobalPullRefresh {
+  if (self.overviewScroll.refreshControl.refreshing) {
+    [self.overviewScroll.refreshControl endRefreshing];
+  }
+  if (self.certTable.refreshControl.refreshing) {
+    [self.certTable.refreshControl endRefreshing];
+  }
+}
+
+- (void)_endIpPullRefresh:(NSInteger)kind {
+  UITableView *table = kind == 0 ? self.adminTable : (kind == 1 ? self.whiteTable : self.blackTable);
+  if (table.refreshControl.refreshing) {
+    [table.refreshControl endRefreshing];
+  }
+}
+
 - (void)_refreshAll {
   [self _beginBusy];
   [self.client ensureSession:^(NSError *error) {
     if (error) {
       [self _endBusy];
+      [self _endGlobalPullRefresh];
       [self _setStatus:error.localizedDescription];
       return;
     }
     [self.client gateGet:^(NSDictionary *data, NSError *err) {
       if (err) {
         [self _endBusy];
+        [self _endGlobalPullRefresh];
         [self _setStatus:err.localizedDescription];
         return;
       }
@@ -578,6 +605,7 @@ typedef NS_ENUM(NSInteger, AutumnOpsClearTokenUI) {
 - (void)_loadCertsAfterMembership {
   [self.client certList:^(NSDictionary *data, NSError *err) {
     [self _endBusy];
+    [self _endGlobalPullRefresh];
     if (err) {
       [self _setStatus:err.localizedDescription];
       return;
@@ -616,6 +644,7 @@ typedef NS_ENUM(NSInteger, AutumnOpsClearTokenUI) {
   [self _beginBusy];
   void (^done)(AutumnOpsIpPage *, NSError *) = ^(AutumnOpsIpPage *page, NSError *error) {
     [self _endBusy];
+    [self _endIpPullRefresh:kind];
     if (error) { [self _toast:error.localizedDescription]; return; }
     if (kind == 0) { self.adminRows = page.list; [self.adminTable reloadData]; }
     else if (kind == 1) { self.whiteRows = page.list; [self.whiteTable reloadData]; }

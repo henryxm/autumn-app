@@ -2,6 +2,7 @@ import 'package:autumn_ops/autumn_ops.dart';
 import 'package:flutter/material.dart';
 import 'package:uuid/uuid.dart';
 
+import 'ops_chrome.dart';
 import 'ops_fused_field.dart';
 import 'ops_manage_page.dart';
 import 'ops_pages.dart';
@@ -335,11 +336,13 @@ class _AutumnOpsGatePageState extends State<AutumnOpsGatePage> {
     final isPayload = widget.rawUrl == null;
     return Scaffold(
       appBar: AppBar(
+        centerTitle: true,
         title: Text(isPayload ? '导入运维凭证' : 'Autumn 运维发现'),
         actions: [
-          TextButton(
+          IconButton(
             onPressed: _busy ? null : _openSites,
-            child: const Text('站点列表'),
+            icon: const OpsSitesListIcon(size: 22),
+            tooltip: '站点列表',
           ),
         ],
       ),

@@ -6,6 +6,7 @@ export 'package:autumn_ops/autumn_ops.dart'
 export 'src/ops_pages.dart';
 export 'src/ops_manage_page.dart';
 export 'src/ops_gate.dart';
+export 'src/ops_entry.dart';
 export 'src/ops_payload_io.dart';
 export 'src/ops_ip_list_panel.dart';
 export 'src/ops_shield_panel.dart';

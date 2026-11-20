@@ -47,6 +47,9 @@ typedef NS_ENUM(NSInteger, AutumnOpsButtonStyle) {
 
 + (void)setControl:(UIView *)view enabled:(BOOL)enabled;
 
+/// 微信小程序「回到列表」式：圆环 + 中心实心方块（模板图，随 tintColor）。
++ (UIImage *)sitesListIconWithSize:(CGFloat)size;
+
 @end
 
 NS_ASSUME_NONNULL_END

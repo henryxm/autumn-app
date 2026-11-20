@@ -405,3 +405,54 @@ class OpsSwitchRow extends StatelessWidget {
     );
   }
 }
+
+/// 微信小程序「回到列表」式图标：细圆环 + 中心实心方块。
+class OpsSitesListIcon extends StatelessWidget {
+  const OpsSitesListIcon({super.key, this.size = 22, this.color});
+
+  final double size;
+  final Color? color;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = color ?? IconTheme.of(context).color ?? Theme.of(context).colorScheme.onSurface;
+    return SizedBox(
+      width: size,
+      height: size,
+      child: CustomPaint(painter: _OpsSitesListIconPainter(c)),
+    );
+  }
+}
+
+class _OpsSitesListIconPainter extends CustomPainter {
+  _OpsSitesListIconPainter(this.color);
+
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final strokeW = (size.width * 0.09).clamp(1.2, 2.0);
+    final stroke = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = strokeW
+      ..isAntiAlias = true;
+    final fill = Paint()
+      ..color = color
+      ..style = PaintingStyle.fill
+      ..isAntiAlias = true;
+    final center = Offset(size.width / 2, size.height / 2);
+    final outerR = size.width / 2 - strokeW;
+    canvas.drawCircle(center, outerR, stroke);
+    // 中心实心方块（约外径 28%）
+    final half = size.width * 0.14;
+    canvas.drawRect(
+      Rect.fromCenter(center: center, width: half * 2, height: half * 2),
+      fill,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _OpsSitesListIconPainter oldDelegate) =>
+      oldDelegate.color != color;
+}

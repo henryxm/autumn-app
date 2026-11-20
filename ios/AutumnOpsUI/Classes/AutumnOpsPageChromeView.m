@@ -57,11 +57,11 @@
   for (UIView *item in rightItems ?: @[]) {
     [chrome addRightItem:item];
   }
+  // 对齐 Flutter AppBar：顶栏同色铺进状态栏，避免 safeArea 上方露出卡片/异色底
   [vc.view addSubview:chrome];
   [chrome mas_makeConstraints:^(MASConstraintMaker *make) {
-    make.left.right.equalTo(vc.view);
-    make.top.equalTo(vc.view.mas_safeAreaLayoutGuideTop);
-    make.height.mas_equalTo(44);
+    make.left.right.top.equalTo(vc.view);
+    make.bottom.equalTo(vc.view.mas_safeAreaLayoutGuideTop).offset(44);
   }];
   return chrome;
 }
@@ -69,6 +69,7 @@
 - (instancetype)initWithFrame:(CGRect)frame {
   self = [super initWithFrame:frame];
   if (self) {
+    // 跟随宿主主题（XSVideo 等），勿用运维卡片色
     self.backgroundColor = UIColor.systemBackgroundColor;
     _showsBack = YES;
 
@@ -84,7 +85,7 @@
 
     _titleLabel = [UILabel new];
     _titleLabel.font = [UIFont systemFontOfSize:17 weight:UIFontWeightSemibold];
-    _titleLabel.textAlignment = NSTextAlignmentLeft;
+    _titleLabel.textAlignment = NSTextAlignmentCenter;
     _titleLabel.lineBreakMode = NSLineBreakByTruncatingMiddle;
     _titleLabel.textColor = UIColor.labelColor;
     [_titleLabel setContentCompressionResistancePriority:UILayoutPriorityDefaultLow
@@ -109,21 +110,24 @@
     _hairline.backgroundColor = UIColor.separatorColor;
     [self addSubview:_hairline];
 
+    // 控件落在底部 44pt 标题带；上方留给状态栏同色填充
     [_backBtn mas_makeConstraints:^(MASConstraintMaker *make) {
       make.leading.equalTo(self).offset(4);
-      make.centerY.equalTo(self);
+      make.bottom.equalTo(self);
       make.height.mas_equalTo(44);
       self.backWidthConstraint = make.width.mas_equalTo(44);
     }];
     [_rightStack mas_makeConstraints:^(MASConstraintMaker *make) {
       make.trailing.equalTo(self).offset(-4);
-      make.centerY.equalTo(self);
+      make.bottom.equalTo(self);
       make.height.mas_equalTo(44);
     }];
+    // 相对标题带水平居中；左右夹紧避免与返回/右侧图标重叠
     [_titleLabel mas_makeConstraints:^(MASConstraintMaker *make) {
-      make.leading.equalTo(self.backBtn.mas_trailing).offset(4);
-      make.trailing.equalTo(self.rightStack.mas_leading).offset(-8);
-      make.centerY.equalTo(self);
+      make.centerX.equalTo(self);
+      make.centerY.equalTo(self.backBtn);
+      make.leading.greaterThanOrEqualTo(self.backBtn.mas_trailing).offset(4);
+      make.trailing.lessThanOrEqualTo(self.rightStack.mas_leading).offset(-8);
     }];
     [_hairline mas_makeConstraints:^(MASConstraintMaker *make) {
       make.left.right.bottom.equalTo(self);

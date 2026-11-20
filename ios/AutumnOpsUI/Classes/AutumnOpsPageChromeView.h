@@ -22,7 +22,7 @@ NS_ASSUME_NONNULL_BEGIN
 /// 返回：优先 pop；若已是栈根则 dismiss 所在 presented nav / vc。
 + (void)performBackFromViewController:(UIViewController *)vc;
 
-/// 若需 embed：挂到 vc.view 顶（safeArea），返回 chrome；否则返回 nil 并用系统栏。
+/// 若需 embed：挂到 vc.view 顶并铺满状态栏（同色），返回 chrome；否则返回 nil 并用系统栏。
 + (nullable AutumnOpsPageChromeView *)installOnViewController:(UIViewController *)vc
                                                         title:(NSString *)title
                                                    rightItems:(nullable NSArray<UIView *> *)rightItems;

@@ -228,4 +228,24 @@ static const CGFloat kDisabledAlpha = 0.38;
   view.userInteractionEnabled = enabled;
 }
 
++ (UIImage *)sitesListIconWithSize:(CGFloat)size {
+  CGFloat s = MAX(16.0, size);
+  CGSize canvas = CGSizeMake(s, s);
+  UIGraphicsImageRenderer *renderer = [[UIGraphicsImageRenderer alloc] initWithSize:canvas];
+  UIImage *img = [renderer imageWithActions:^(UIGraphicsImageRendererContext *ctx) {
+    CGContextRef c = ctx.CGContext;
+    CGFloat line = MAX(1.2, s * 0.09);
+    CGFloat inset = line;
+    CGRect ring = CGRectMake(inset, inset, s - inset * 2.0, s - inset * 2.0);
+    CGContextSetStrokeColorWithColor(c, UIColor.blackColor.CGColor);
+    CGContextSetLineWidth(c, line);
+    CGContextStrokeEllipseInRect(c, ring);
+    CGFloat half = s * 0.14;
+    CGRect square = CGRectMake(s * 0.5 - half, s * 0.5 - half, half * 2.0, half * 2.0);
+    CGContextSetFillColorWithColor(c, UIColor.blackColor.CGColor);
+    CGContextFillRect(c, square);
+  }];
+  return [img imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate];
+}
+
 @end

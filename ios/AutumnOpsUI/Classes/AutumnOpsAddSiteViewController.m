@@ -37,7 +37,7 @@
 
 - (void)viewDidLoad {
   [super viewDidLoad];
-  self.view.backgroundColor = AutumnOpsUITheme.surface;
+  self.view.backgroundColor = UIColor.systemBackgroundColor;
   self.title = @"添加站点";
   self.siteStore = [[AutumnOpsSiteStore alloc] initWithRootDirectory:[AutumnOpsSiteStore defaultRootDirectory]];
   _pageChrome = [AutumnOpsPageChromeView installOnViewController:self title:@"添加站点" rightItems:nil];

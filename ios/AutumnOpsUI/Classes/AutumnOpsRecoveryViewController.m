@@ -1,4 +1,6 @@
 #import "AutumnOpsRecoveryViewController.h"
+#import "AutumnOpsPageChromeView.h"
+#import "AutumnOpsUITheme.h"
 #import <Masonry/Masonry.h>
 
 static NSString * const kAutumnOpsRecoverySQL =
@@ -7,6 +9,7 @@ static NSString * const kAutumnOpsRecoverySQL =
 @interface AutumnOpsRecoveryViewController ()
 @property (nonatomic, copy, nullable) NSString *siteTitle;
 @property (nonatomic, copy, nullable) NSString *baseUrl;
+@property (nonatomic, strong, nullable) AutumnOpsPageChromeView *pageChrome;
 @end
 
 @implementation AutumnOpsRecoveryViewController
@@ -22,13 +25,17 @@ static NSString * const kAutumnOpsRecoverySQL =
 
 - (void)viewDidLoad {
   [super viewDidLoad];
-  self.view.backgroundColor = UIColor.systemBackgroundColor;
-  self.title = self.siteTitle.length ? [NSString stringWithFormat:@"恢复：%@", self.siteTitle] : @"恢复运维证书";
+  self.view.backgroundColor = AutumnOpsUITheme.surface;
+  NSString *title = self.siteTitle.length ? [NSString stringWithFormat:@"恢复：%@", self.siteTitle] : @"恢复运维证书";
+  self.title = title;
+  _pageChrome = [AutumnOpsPageChromeView installOnViewController:self title:title rightItems:nil];
 
   UIScrollView *scroll = [UIScrollView new];
   [self.view addSubview:scroll];
   [scroll mas_makeConstraints:^(MASConstraintMaker *make) {
-    make.edges.equalTo(self.view.mas_safeAreaLayoutGuide);
+    make.left.right.bottom.equalTo(self.view);
+    if (_pageChrome) make.top.equalTo(_pageChrome.mas_bottom);
+    else make.top.equalTo(self.view.mas_safeAreaLayoutGuideTop);
   }];
   UIStackView *stack = [UIStackView new];
   stack.axis = UILayoutConstraintAxisVertical;

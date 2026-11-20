@@ -4,6 +4,7 @@
 #import "AutumnOpsSitesViewController.h"
 #import "AutumnOpsPageChromeView.h"
 #import "AutumnOpsUIConfig.h"
+#import "AutumnOpsUITheme.h"
 #import <AutumnOpsCore/AutumnOpsCore.h>
 #import <Masonry/Masonry.h>
 
@@ -40,36 +41,20 @@
 
 - (void)viewDidLoad {
   [super viewDidLoad];
-  self.view.backgroundColor = UIColor.systemBackgroundColor;
+  self.view.backgroundColor = AutumnOpsUITheme.surface;
   BOOL isPayload = self.rawURL.length == 0;
   NSString *title = isPayload ? @"导入运维凭证" : @"Autumn 运维发现";
   self.title = title;
   self.siteStore = [[AutumnOpsSiteStore alloc] initWithRootDirectory:[AutumnOpsSiteStore defaultRootDirectory]];
   self.navigationItem.rightBarButtonItem = [[UIBarButtonItem alloc] initWithTitle:@"站点列表" style:UIBarButtonItemStylePlain target:self action:@selector(_openSites)];
 
-  BOOL embed = [AutumnOpsPageChromeView shouldEmbedInViewController:self];
-  UIView *top = nil;
-  if (embed) {
-    self.navigationItem.rightBarButtonItem = nil;
-    self.navigationItem.title = nil;
-    _pageChrome = [AutumnOpsPageChromeView new];
-    _pageChrome.titleText = title;
-    _pageChrome.showsBack = YES;
-    __weak typeof(self) weakSelf = self;
-    _pageChrome.onBack = ^{ [AutumnOpsPageChromeView performBackFromViewController:weakSelf]; };
-    UIButton *sites = [UIButton buttonWithType:UIButtonTypeSystem];
-    [sites setTitle:@"站点列表" forState:UIControlStateNormal];
-    sites.titleLabel.font = [UIFont systemFontOfSize:16];
-    [sites addTarget:self action:@selector(_openSites) forControlEvents:UIControlEventTouchUpInside];
-    [_pageChrome.rightStack addArrangedSubview:sites];
-    [self.view addSubview:_pageChrome];
-    [_pageChrome mas_makeConstraints:^(MASConstraintMaker *make) {
-      make.left.right.equalTo(self.view);
-      make.top.equalTo(self.view.mas_safeAreaLayoutGuideTop);
-      make.height.mas_equalTo(44);
-    }];
-    top = _pageChrome;
-  }
+  UIButton *sites = [UIButton buttonWithType:UIButtonTypeSystem];
+  [sites setTitle:@"站点列表" forState:UIControlStateNormal];
+  [sites setTitleColor:AutumnOpsUITheme.primary forState:UIControlStateNormal];
+  sites.titleLabel.font = [UIFont systemFontOfSize:16];
+  [sites addTarget:self action:@selector(_openSites) forControlEvents:UIControlEventTouchUpInside];
+  _pageChrome = [AutumnOpsPageChromeView installOnViewController:self title:title rightItems:@[sites]];
+  UIView *top = _pageChrome;
 
   _statusLabel = [UILabel new];
   _statusLabel.numberOfLines = 0;

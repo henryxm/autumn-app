@@ -1,7 +1,9 @@
 #import "AutumnOpsAddSiteViewController.h"
 #import "AutumnOpsManageViewController.h"
 #import "AutumnOpsRecoveryViewController.h"
+#import "AutumnOpsPageChromeView.h"
 #import "AutumnOpsUIConfig.h"
+#import "AutumnOpsUITheme.h"
 #import <AutumnOpsCore/AutumnOpsCore.h>
 #import <Masonry/Masonry.h>
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
@@ -19,6 +21,7 @@
 @property (nonatomic, copy, nullable) NSString *resolvedBase;
 @property (nonatomic, strong) AutumnOpsSiteStore *siteStore;
 @property (nonatomic, strong) UIActivityIndicatorView *spinner;
+@property (nonatomic, strong, nullable) AutumnOpsPageChromeView *pageChrome;
 @end
 
 @implementation AutumnOpsAddSiteViewController
@@ -34,9 +37,10 @@
 
 - (void)viewDidLoad {
   [super viewDidLoad];
-  self.view.backgroundColor = UIColor.systemBackgroundColor;
+  self.view.backgroundColor = AutumnOpsUITheme.surface;
   self.title = @"添加站点";
   self.siteStore = [[AutumnOpsSiteStore alloc] initWithRootDirectory:[AutumnOpsSiteStore defaultRootDirectory]];
+  _pageChrome = [AutumnOpsPageChromeView installOnViewController:self title:@"添加站点" rightItems:nil];
   _titleField = [self _field:@"显示名称（可选）"];
   _endpointField = [self _field:@"域名 / IP / URL"];
   if (self.presetBase.length) _endpointField.text = self.presetBase;
@@ -48,19 +52,22 @@
   _hint = [UILabel new];
   _hint.numberOfLines = 0;
   _hint.font = [UIFont systemFontOfSize:13];
-  _hint.textColor = UIColor.secondaryLabelColor;
+  _hint.textColor = AutumnOpsUITheme.onSurfaceVariant;
   _probeLabel = [UILabel new];
   _probeLabel.numberOfLines = 0;
   _probeLabel.font = [UIFont systemFontOfSize:13];
   _spinner = [[UIActivityIndicatorView alloc] initWithActivityIndicatorStyle:UIActivityIndicatorViewStyleMedium];
   UIButton *probe = [UIButton buttonWithType:UIButtonTypeSystem];
   [probe setTitle:@"探测" forState:UIControlStateNormal];
+  [probe setTitleColor:AutumnOpsUITheme.primary forState:UIControlStateNormal];
   [probe addTarget:self action:@selector(_probe) forControlEvents:UIControlEventTouchUpInside];
   UIButton *go = [UIButton buttonWithType:UIButtonTypeSystem];
   [go setTitle:@"继续" forState:UIControlStateNormal];
+  [go setTitleColor:AutumnOpsUITheme.primary forState:UIControlStateNormal];
   [go addTarget:self action:@selector(_go) forControlEvents:UIControlEventTouchUpInside];
   UIButton *recovery = [UIButton buttonWithType:UIButtonTypeSystem];
   [recovery setTitle:@"丢钥恢复说明" forState:UIControlStateNormal];
+  [recovery setTitleColor:AutumnOpsUITheme.primary forState:UIControlStateNormal];
   [recovery addTarget:self action:@selector(_recovery) forControlEvents:UIControlEventTouchUpInside];
   UIStackView *stack = [[UIStackView alloc] initWithArrangedSubviews:@[_modeSeg, _titleField, _endpointField, probe, _spinner, _probeLabel, _secretField, _hint, go, recovery]];
   stack.axis = UILayoutConstraintAxisVertical;
@@ -68,14 +75,14 @@
   [self.view addSubview:stack];
   [stack mas_makeConstraints:^(MASConstraintMaker *make) {
     make.left.right.equalTo(self.view).inset(20);
-    make.top.equalTo(self.view.mas_safeAreaLayoutGuideTop).offset(20);
+    if (_pageChrome) make.top.equalTo(_pageChrome.mas_bottom).offset(20);
+    else make.top.equalTo(self.view.mas_safeAreaLayoutGuideTop).offset(20);
   }];
   [self _modeChanged];
   if (self.autoProbe && self.presetBase.length) {
     dispatch_async(dispatch_get_main_queue(), ^{ [self _probe]; });
   }
 }
-
 - (UITextField *)_field:(NSString *)ph {
   UITextField *f = [UITextField new];
   f.borderStyle = UITextBorderStyleRoundedRect;

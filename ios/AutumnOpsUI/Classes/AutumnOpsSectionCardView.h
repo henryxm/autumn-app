@@ -2,7 +2,7 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-/// Flutter `_sectionCard` 对齐：圆角 14、浅底、标题+说明+内容。
+/// Flutter `_sectionCard` 对齐：圆角 14、cardFill、标题+说明+内容。
 @interface AutumnOpsSectionCardView : UIView
 
 @property (nonatomic, strong, readonly) UILabel *titleLabel;
@@ -13,11 +13,12 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)setBodyText:(NSString *)body;
 - (void)setOutlined:(BOOL)outlined;
 
-/// 左标签宽 96 的 kv 行（对齐 Flutter `_kv`）。
-+ (UIView *)kvRowWithKey:(NSString *)key value:(NSString *)value;
+/// 标题行左侧图标（如盾牌）；传 nil 清除。
+- (void)setTitleLeading:(nullable UIView *)leading;
+/// 标题行右侧配件（如 status chip）；传 nil 清除。
+- (void)setTitleAccessory:(nullable UIView *)accessory;
 
-/// 状态 Chip（圆角胶囊）。
-+ (UILabel *)statusChipWithText:(NSString *)text on:(BOOL)on;
++ (UIView *)kvRowWithKey:(NSString *)key value:(NSString *)value;
 
 @end
 

@@ -1,12 +1,12 @@
 #import "AutumnOpsScrollableTabBar.h"
+#import "AutumnOpsUITheme.h"
 
 static const CGFloat kLabelPadH = 14.0;
 static const CGFloat kIndicatorH = 2.0;
 static const CGFloat kFontSize = 13.0;
 
-/// Flutter ColorScheme.fromSeed(0xFF1565C0) primary
 static inline UIColor *AutumnOpsTabAccent(void) {
-  return [UIColor colorWithRed:0x15 / 255.0 green:0x65 / 255.0 blue:0xC0 / 255.0 alpha:1];
+  return AutumnOpsUITheme.tabAccent;
 }
 
 @interface AutumnOpsScrollableTabBar ()

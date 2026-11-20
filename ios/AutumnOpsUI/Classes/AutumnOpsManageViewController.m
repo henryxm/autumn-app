@@ -8,6 +8,8 @@
 #import "AutumnOpsSectionCardView.h"
 #import "AutumnOpsSitesViewController.h"
 #import "AutumnOpsUIConfig.h"
+#import "AutumnOpsUITheme.h"
+#import "AutumnOpsUIControls.h"
 #import <AutumnOpsCore/AutumnOpsCore.h>
 #import <Masonry/Masonry.h>
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
@@ -15,8 +17,10 @@
 typedef NS_ENUM(NSInteger, AutumnOpsClearTokenUI) {
   AutumnOpsClearTokenUIEmpty = 0,
   AutumnOpsClearTokenUIPending,
+  AutumnOpsClearTokenUISaved,
   AutumnOpsClearTokenUIReady,
   AutumnOpsClearTokenUIServerUnset,
+  AutumnOpsClearTokenUIError,
 };
 
 @interface AutumnOpsManageViewController () <UITableViewDataSource, UITableViewDelegate>
@@ -48,18 +52,20 @@ typedef NS_ENUM(NSInteger, AutumnOpsClearTokenUI) {
 @property (nonatomic, strong) AutumnOpsSectionCardView *gateCard;
 @property (nonatomic, strong) AutumnOpsSectionCardView *tokenCard;
 @property (nonatomic, strong) AutumnOpsSectionCardView *shareCard;
-@property (nonatomic, strong) UILabel *discoverChip;
-@property (nonatomic, strong) UILabel *gateChip;
+@property (nonatomic, strong) AutumnOpsChipView *discoverChip;
+@property (nonatomic, strong) AutumnOpsChipView *gateChip;
 @property (nonatomic, strong) UIButton *discoverActionBtn;
 @property (nonatomic, strong) UIButton *gateActionBtn;
 @property (nonatomic, strong) UIButton *claimBtn;
-@property (nonatomic, strong) UILabel *shareUrlLabel;
-@property (nonatomic, strong) UILabel *clearTokenStatusChip;
+@property (nonatomic, strong) UITextView *shareUrlView;
+@property (nonatomic, strong) AutumnOpsChipView *clearTokenStatusChip;
 @property (nonatomic, strong) UIButton *clearTokenActionBtn;
+@property (nonatomic, strong) UIButton *clearTokenClearBtn;
 @property (nonatomic) NSInteger activeCount;
 
 @property (nonatomic, strong) UITextField *clearTokenField;
 @property (nonatomic, strong) UILabel *clearTokenHint;
+@property (nonatomic, copy, nullable) NSString *clearTokenError;
 
 @property (nonatomic, strong) UITextView *runtimeText;
 
@@ -127,33 +133,24 @@ typedef NS_ENUM(NSInteger, AutumnOpsClearTokenUI) {
   self.refreshBarItem = [[UIBarButtonItem alloc] initWithBarButtonSystemItem:UIBarButtonSystemItemRefresh target:self action:@selector(_refreshAll)];
   self.navigationItem.rightBarButtonItems = @[self.refreshBarItem, self.sitesBarItem];
 
-  BOOL embed = [AutumnOpsPageChromeView shouldEmbedInViewController:self];
-  UIView *topAnchorView = nil;
-  if (embed) {
-    self.navigationItem.rightBarButtonItems = nil;
-    self.navigationItem.title = nil;
-    _pageChrome = [AutumnOpsPageChromeView new];
-    _pageChrome.titleText = title;
-    _pageChrome.showsBack = YES;
-    __weak typeof(self) weakSelf = self;
-    _pageChrome.onBack = ^{ [AutumnOpsPageChromeView performBackFromViewController:weakSelf]; };
-    _chromeSitesBtn = [UIButton buttonWithType:UIButtonTypeSystem];
-    [_chromeSitesBtn setTitle:@"站点" forState:UIControlStateNormal];
-    _chromeSitesBtn.titleLabel.font = [UIFont systemFontOfSize:16];
-    [_chromeSitesBtn addTarget:self action:@selector(_goSites) forControlEvents:UIControlEventTouchUpInside];
-    _chromeRefreshBtn = [UIButton buttonWithType:UIButtonTypeSystem];
-    [_chromeRefreshBtn setImage:[UIImage systemImageNamed:@"arrow.clockwise"] forState:UIControlStateNormal];
-    _chromeRefreshBtn.tintColor = UIColor.labelColor;
-    [_chromeRefreshBtn addTarget:self action:@selector(_refreshAll) forControlEvents:UIControlEventTouchUpInside];
-    [_pageChrome.rightStack addArrangedSubview:_chromeSitesBtn];
-    [_pageChrome.rightStack addArrangedSubview:_chromeRefreshBtn];
-    [self.view addSubview:_pageChrome];
-    [_pageChrome mas_makeConstraints:^(MASConstraintMaker *make) {
-      make.left.right.equalTo(self.view);
-      make.top.equalTo(self.view.mas_safeAreaLayoutGuideTop);
-      make.height.mas_equalTo(44);
-    }];
-    topAnchorView = _pageChrome;
+  _chromeSitesBtn = [UIButton buttonWithType:UIButtonTypeSystem];
+  [_chromeSitesBtn setTitle:@"站点" forState:UIControlStateNormal];
+  [_chromeSitesBtn setTitleColor:AutumnOpsUITheme.primary forState:UIControlStateNormal];
+  _chromeSitesBtn.titleLabel.font = [UIFont systemFontOfSize:16 weight:UIFontWeightRegular];
+  [_chromeSitesBtn addTarget:self action:@selector(_goSites) forControlEvents:UIControlEventTouchUpInside];
+  _chromeRefreshBtn = [UIButton buttonWithType:UIButtonTypeSystem];
+  UIImageSymbolConfiguration *refCfg =
+      [UIImageSymbolConfiguration configurationWithPointSize:20 weight:UIImageSymbolWeightRegular];
+  [_chromeRefreshBtn setImage:[UIImage systemImageNamed:@"arrow.clockwise" withConfiguration:refCfg]
+                     forState:UIControlStateNormal];
+  _chromeRefreshBtn.tintColor = AutumnOpsUITheme.onSurface;
+  _chromeRefreshBtn.imageView.contentMode = UIViewContentModeScaleAspectFit;
+  [_chromeRefreshBtn addTarget:self action:@selector(_refreshAll) forControlEvents:UIControlEventTouchUpInside];
+  // 对齐 Flutter AppBar actions：TextButton「站点」+ IconButton refresh
+  _pageChrome = [AutumnOpsPageChromeView installOnViewController:self title:title rightItems:@[_chromeSitesBtn, _chromeRefreshBtn]];
+  UIView *topAnchorView = _pageChrome;
+  if (!_pageChrome) {
+    // 系统栏可见：保留 navigationItem
   }
 
   _tabs = [[AutumnOpsScrollableTabBar alloc] initWithItems:@[@"概览", @"运行", @"管理IP", @"白名单", @"黑名单", @"盾牌", @"跳转", @"证书"]];
@@ -161,11 +158,11 @@ typedef NS_ENUM(NSInteger, AutumnOpsClearTokenUI) {
   [_tabs addTarget:self action:@selector(_tabChanged) forControlEvents:UIControlEventValueChanged];
 
   _statusBar = [UIView new];
-  _statusBar.backgroundColor = [UIColor tertiarySystemFillColor];
+  _statusBar.backgroundColor = AutumnOpsUITheme.surfaceContainerHighest;
   _statusLabel = [UILabel new];
   _statusLabel.numberOfLines = 2;
   _statusLabel.font = [UIFont systemFontOfSize:13];
-  _statusLabel.textColor = UIColor.labelColor;
+  _statusLabel.textColor = AutumnOpsUITheme.onSurface;
   _spinner = [[UIActivityIndicatorView alloc] initWithActivityIndicatorStyle:UIActivityIndicatorViewStyleMedium];
   [_statusBar addSubview:_statusLabel];
   [_statusBar addSubview:_spinner];
@@ -206,6 +203,13 @@ typedef NS_ENUM(NSInteger, AutumnOpsClearTokenUI) {
   [self _refreshAll];
 }
 
+- (void)viewWillAppear:(BOOL)animated {
+  [super viewWillAppear:animated];
+  if (self.pageChrome) {
+    self.pageChrome.showsBack = [AutumnOpsPageChromeView canGoBackFromViewController:self];
+  }
+}
+
 #pragma mark - Nav
 
 - (void)_goSites {
@@ -229,12 +233,16 @@ typedef NS_ENUM(NSInteger, AutumnOpsClearTokenUI) {
   BOOL enabled = self.busyDepth == 0;
   self.sitesBarItem.enabled = enabled;
   self.refreshBarItem.enabled = enabled;
-  self.chromeSitesBtn.enabled = enabled;
-  self.chromeRefreshBtn.enabled = enabled;
-  self.discoverActionBtn.enabled = enabled;
-  self.gateActionBtn.enabled = enabled;
-  self.claimBtn.enabled = enabled;
-  self.clearTokenActionBtn.enabled = enabled;
+  [AutumnOpsUIControls setControl:self.chromeSitesBtn enabled:enabled];
+  [AutumnOpsUIControls setControl:self.chromeRefreshBtn enabled:enabled];
+  [AutumnOpsUIControls setControl:self.discoverActionBtn enabled:enabled];
+  [AutumnOpsUIControls setControl:self.gateActionBtn enabled:enabled];
+  [AutumnOpsUIControls setControl:self.claimBtn enabled:enabled];
+  if (!enabled) {
+    [AutumnOpsUIControls setControl:self.clearTokenActionBtn enabled:NO];
+  } else {
+    [self _refreshClearTokenActionTitle];
+  }
 }
 
 #pragma mark - Busy
@@ -284,30 +292,6 @@ typedef NS_ENUM(NSInteger, AutumnOpsClearTokenUI) {
   return t;
 }
 
-- (UIButton *)_filledButton:(NSString *)title action:(SEL)action {
-  UIButton *b = [UIButton buttonWithType:UIButtonTypeSystem];
-  [b setTitle:title forState:UIControlStateNormal];
-  b.titleLabel.font = [UIFont systemFontOfSize:15 weight:UIFontWeightSemibold];
-  [b setTitleColor:UIColor.whiteColor forState:UIControlStateNormal];
-  b.backgroundColor = [UIColor colorWithRed:0x15 / 255.0 green:0x65 / 255.0 blue:0xC0 / 255.0 alpha:1];
-  b.layer.cornerRadius = 8;
-  b.contentEdgeInsets = UIEdgeInsetsMake(8, 14, 8, 14);
-  [b addTarget:self action:action forControlEvents:UIControlEventTouchUpInside];
-  return b;
-}
-
-- (UIButton *)_outlinedButton:(NSString *)title action:(SEL)action {
-  UIButton *b = [UIButton buttonWithType:UIButtonTypeSystem];
-  [b setTitle:title forState:UIControlStateNormal];
-  b.titleLabel.font = [UIFont systemFontOfSize:15 weight:UIFontWeightMedium];
-  b.layer.cornerRadius = 8;
-  b.layer.borderWidth = 1;
-  b.layer.borderColor = UIColor.separatorColor.CGColor;
-  b.contentEdgeInsets = UIEdgeInsetsMake(8, 14, 8, 14);
-  [b addTarget:self action:action forControlEvents:UIControlEventTouchUpInside];
-  return b;
-}
-
 - (void)_buildPanels {
   // Overview — Flutter section cards
   _overviewPanel = [UIView new];
@@ -328,8 +312,8 @@ typedef NS_ENUM(NSInteger, AutumnOpsClearTokenUI) {
   [_overviewStack addArrangedSubview:_siteInfoCard];
 
   _discoverCard = [[AutumnOpsSectionCardView alloc] initWithTitle:@"站点发现页" body:@""];
-  _discoverChip = [AutumnOpsSectionCardView statusChipWithText:@"发现已开" on:YES];
-  _discoverActionBtn = [self _outlinedButton:@"关闭" action:@selector(_discoverActionTapped)];
+  _discoverChip = [AutumnOpsUIControls chipWithText:@"发现已开" kind:AutumnOpsChipKindOn];
+  _discoverActionBtn = [AutumnOpsUIControls buttonWithTitle:@"关闭" style:AutumnOpsButtonStyleOutlined target:self action:@selector(_discoverActionTapped)];
   UIView *discSpacer = [UIView new];
   [discSpacer setContentHuggingPriority:UILayoutPriorityDefaultLow forAxis:UILayoutConstraintAxisHorizontal];
   UIStackView *discRow = [[UIStackView alloc] initWithArrangedSubviews:@[_discoverChip, discSpacer, _discoverActionBtn]];
@@ -340,8 +324,8 @@ typedef NS_ENUM(NSInteger, AutumnOpsClearTokenUI) {
   [_overviewStack addArrangedSubview:_discoverCard];
 
   _gateCard = [[AutumnOpsSectionCardView alloc] initWithTitle:@"管理 IP 校验（门禁）" body:@""];
-  _gateChip = [AutumnOpsSectionCardView statusChipWithText:@"已开" on:YES];
-  _gateActionBtn = [self _outlinedButton:@"关闭" action:@selector(_gateActionTapped)];
+  _gateChip = [AutumnOpsUIControls chipWithText:@"已开" kind:AutumnOpsChipKindOn];
+  _gateActionBtn = [AutumnOpsUIControls buttonWithTitle:@"关闭" style:AutumnOpsButtonStyleOutlined target:self action:@selector(_gateActionTapped)];
   UIView *gateSpacer = [UIView new];
   [gateSpacer setContentHuggingPriority:UILayoutPriorityDefaultLow forAxis:UILayoutConstraintAxisHorizontal];
   UIStackView *gateRow = [[UIStackView alloc] initWithArrangedSubviews:@[_gateChip, gateSpacer, _gateActionBtn]];
@@ -353,75 +337,80 @@ typedef NS_ENUM(NSInteger, AutumnOpsClearTokenUI) {
 
   _tokenCard = [[AutumnOpsSectionCardView alloc] initWithTitle:@"清除确认令牌" body:@"用于关闭管理 IP 校验、删除「当前访问 IP」等危险操作的二次确认。"];
   [_tokenCard setOutlined:YES];
-  _clearTokenStatusChip = [AutumnOpsSectionCardView statusChipWithText:@"未填写" on:NO];
-  UIStackView *tokTitleExtra = [[UIStackView alloc] initWithArrangedSubviews:@[[UIView new], _clearTokenStatusChip]];
-  tokTitleExtra.axis = UILayoutConstraintAxisHorizontal;
-  [_tokenCard.contentStack addArrangedSubview:tokTitleExtra];
-  _clearTokenField = [UITextField new];
-  _clearTokenField.secureTextEntry = YES;
-  _clearTokenField.placeholder = @"输入令牌后保存校验，或修改后保存";
-  _clearTokenField.font = [UIFont systemFontOfSize:15];
-  _clearTokenActionBtn = [UIButton buttonWithType:UIButtonTypeSystem];
-  [_clearTokenActionBtn setTitle:@"保存" forState:UIControlStateNormal];
-  _clearTokenActionBtn.titleLabel.font = [UIFont systemFontOfSize:15 weight:UIFontWeightSemibold];
-  [_clearTokenActionBtn addTarget:self action:@selector(_saveClearToken) forControlEvents:UIControlEventTouchUpInside];
-  UIView *tokBar = [UIView new];
-  tokBar.backgroundColor = UIColor.systemBackgroundColor;
-  tokBar.layer.cornerRadius = 12;
-  tokBar.layer.borderWidth = 1;
-  tokBar.layer.borderColor = UIColor.separatorColor.CGColor;
-  [tokBar addSubview:_clearTokenField];
-  [tokBar addSubview:_clearTokenActionBtn];
-  UIView *tokDivider = [UIView new];
-  tokDivider.backgroundColor = UIColor.separatorColor;
-  [tokBar addSubview:tokDivider];
-  [_clearTokenField mas_makeConstraints:^(MASConstraintMaker *make) {
-    make.left.equalTo(tokBar).offset(14);
-    make.top.bottom.equalTo(tokBar);
-    make.right.equalTo(tokDivider.mas_left).offset(-8);
-    make.height.mas_equalTo(52);
-  }];
-  [tokDivider mas_makeConstraints:^(MASConstraintMaker *make) {
-    make.centerY.equalTo(tokBar);
-    make.width.mas_equalTo(1);
-    make.height.mas_equalTo(28);
-    make.right.equalTo(_clearTokenActionBtn.mas_left).offset(-4);
-  }];
-  [_clearTokenActionBtn mas_makeConstraints:^(MASConstraintMaker *make) {
-    make.right.equalTo(tokBar).offset(-8);
-    make.centerY.equalTo(tokBar);
-    make.width.mas_greaterThanOrEqualTo(56);
-  }];
-  [_tokenCard.contentStack addArrangedSubview:tokBar];
+  UIImageView *shield = [[UIImageView alloc] initWithImage:[UIImage systemImageNamed:@"shield"]];
+  shield.tintColor = AutumnOpsUITheme.primary;
+  shield.contentMode = UIViewContentModeScaleAspectFit;
+  [_tokenCard setTitleLeading:shield];
+  _clearTokenStatusChip = [AutumnOpsUIControls chipWithText:@"未填写" kind:AutumnOpsChipKindEmpty compact:YES];
+  [_tokenCard setTitleAccessory:_clearTokenStatusChip];
   _clearTokenHint = [UILabel new];
   _clearTokenHint.numberOfLines = 0;
   _clearTokenHint.font = [UIFont systemFontOfSize:12];
-  _clearTokenHint.textColor = UIColor.secondaryLabelColor;
+  _clearTokenHint.textColor = AutumnOpsUITheme.onSurfaceVariant;
+  _clearTokenHint.hidden = YES;
+  UITextField *tokField = nil;
+  UIButton *tokClear = nil;
+  UIButton *tokAction = nil;
+  UIView *tokBar = [AutumnOpsUIControls tokenInputBarWithField:&tokField
+                                                   clearButton:&tokClear
+                                                  actionButton:&tokAction
+                                                        target:self
+                                                        action:@selector(_saveClearToken)];
+  _clearTokenField = tokField;
+  _clearTokenClearBtn = tokClear;
+  _clearTokenActionBtn = tokAction;
+  [_clearTokenClearBtn addTarget:self action:@selector(_resetClearToken) forControlEvents:UIControlEventTouchUpInside];
+  [_clearTokenField addTarget:self action:@selector(_clearTokenEdited) forControlEvents:UIControlEventEditingChanged];
+  UITapGestureRecognizer *chipTap = [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(_showClearTokenError)];
+  [_clearTokenStatusChip addGestureRecognizer:chipTap];
+  _clearTokenStatusChip.userInteractionEnabled = YES;
+  // Flutter：说明 →（错误提示）→ 输入条；间距 8 / 12
+  _tokenCard.contentStack.spacing = 12;
   [_tokenCard.contentStack addArrangedSubview:_clearTokenHint];
-  UIButton *verifyTok = [UIButton buttonWithType:UIButtonTypeSystem];
-  [verifyTok setTitle:@"校验令牌" forState:UIControlStateNormal];
-  [verifyTok addTarget:self action:@selector(_verifyClearToken) forControlEvents:UIControlEventTouchUpInside];
-  [_tokenCard.contentStack addArrangedSubview:verifyTok];
+  [_tokenCard.contentStack addArrangedSubview:tokBar];
   [_overviewStack addArrangedSubview:_tokenCard];
 
-  _claimBtn = [self _filledButton:@"认领当前 IP 为管理 IP" action:@selector(_claimCurrentAdminIp)];
+  _claimBtn = [AutumnOpsUIControls buttonWithTitle:@"认领当前 IP 为管理 IP" style:AutumnOpsButtonStyleFilled target:self action:@selector(_claimCurrentAdminIp)];
+  UIImage *loc = [UIImage systemImageNamed:@"location.fill"];
+  [_claimBtn setImage:loc forState:UIControlStateNormal];
+  _claimBtn.tintColor = AutumnOpsUITheme.onPrimary;
+  _claimBtn.imageEdgeInsets = UIEdgeInsetsMake(0, -4, 0, 4);
   [_overviewStack addArrangedSubview:_claimBtn];
 
   _shareCard = [[AutumnOpsSectionCardView alloc] initWithTitle:@"分享管理入口" body:@""];
-  _shareUrlLabel = [UILabel new];
-  _shareUrlLabel.font = [UIFont systemFontOfSize:13];
-  _shareUrlLabel.numberOfLines = 0;
-  [_shareCard.contentStack addArrangedSubview:_shareUrlLabel];
-  UIButton *copyBtn = [self _outlinedButton:@"复制链接" action:@selector(_copyDiscover)];
-  UIButton *shareBtn = [self _filledButton:@"分享" action:@selector(_shareDiscover)];
+  _shareUrlView = [UITextView new];
+  _shareUrlView.editable = NO;
+  _shareUrlView.scrollEnabled = NO;
+  _shareUrlView.backgroundColor = UIColor.clearColor;
+  _shareUrlView.textContainerInset = UIEdgeInsetsZero;
+  _shareUrlView.textContainer.lineFragmentPadding = 0;
+  _shareUrlView.font = [UIFont systemFontOfSize:13];
+  _shareUrlView.textColor = AutumnOpsUITheme.onSurface;
+  _shareUrlView.dataDetectorTypes = UIDataDetectorTypeNone;
+  [_shareCard.contentStack addArrangedSubview:_shareUrlView];
+  UIButton *copyBtn = [AutumnOpsUIControls buttonWithTitle:@"复制链接" style:AutumnOpsButtonStyleOutlined target:self action:@selector(_copyDiscover)];
+  UIButton *shareBtn = [AutumnOpsUIControls buttonWithTitle:@"分享" style:AutumnOpsButtonStyleTonal target:self action:@selector(_shareDiscover)];
+  UIImageSymbolConfiguration *icfg = [UIImageSymbolConfiguration configurationWithPointSize:15 weight:UIImageSymbolWeightMedium];
+  [copyBtn setImage:[UIImage systemImageNamed:@"doc.on.doc" withConfiguration:icfg] forState:UIControlStateNormal];
+  [shareBtn setImage:[UIImage systemImageNamed:@"square.and.arrow.up" withConfiguration:icfg] forState:UIControlStateNormal];
+  copyBtn.tintColor = AutumnOpsUITheme.primary;
+  shareBtn.tintColor = AutumnOpsUITheme.onSecondaryContainer;
+  copyBtn.imageEdgeInsets = UIEdgeInsetsMake(0, -2, 0, 4);
+  shareBtn.imageEdgeInsets = UIEdgeInsetsMake(0, -2, 0, 4);
   UIStackView *shareRow = [[UIStackView alloc] initWithArrangedSubviews:@[copyBtn, shareBtn]];
   shareRow.axis = UILayoutConstraintAxisHorizontal;
   shareRow.spacing = 8;
   shareRow.distribution = UIStackViewDistributionFillEqually;
+  // Flutter SizedBox(8)；视觉上略增，避免链接与按钮贴紧
+  [_shareCard.contentStack setCustomSpacing:16 afterView:_shareUrlView];
   [_shareCard.contentStack addArrangedSubview:shareRow];
   [_overviewStack addArrangedSubview:_shareCard];
 
-  UIButton *recovery = [self _outlinedButton:@"丢钥 / 无法入驻时如何恢复" action:@selector(_openRecovery)];
+  UIButton *recovery = [AutumnOpsUIControls buttonWithTitle:@"丢钥 / 无法入驻时如何恢复" style:AutumnOpsButtonStyleOutlined target:self action:@selector(_openRecovery)];
+  UIImageSymbolConfiguration *helpCfg = [UIImageSymbolConfiguration configurationWithPointSize:15 weight:UIImageSymbolWeightMedium];
+  [recovery setImage:[UIImage systemImageNamed:@"questionmark.circle" withConfiguration:helpCfg] forState:UIControlStateNormal];
+  recovery.tintColor = AutumnOpsUITheme.primary;
+  recovery.imageEdgeInsets = UIEdgeInsetsMake(0, -2, 0, 4);
   [_overviewStack addArrangedSubview:recovery];
   [_overviewStack setCustomSpacing:8 afterView:_shareCard];
 
@@ -573,7 +562,7 @@ typedef NS_ENUM(NSInteger, AutumnOpsClearTokenUI) {
         self.clearTokenHint.text = @"尚未配置：填写新令牌后点「保存」";
       } else if (self.clearTokenStatus == AutumnOpsClearTokenUIServerUnset) {
         self.clearTokenStatus = AutumnOpsClearTokenUIEmpty;
-        self.clearTokenHint.text = @"已配置：校验通过后才可做敏感操作";
+        self.clearTokenHint.text = @"";
       }
       [self _reloadOverviewCards];
       [self.client currentIp:^(NSDictionary *cur, NSError *e2) {
@@ -666,64 +655,116 @@ typedef NS_ENUM(NSInteger, AutumnOpsClearTokenUI) {
   [self.discoverCard setBodyText:discoverOn
       ? @"已打开：浏览器可访问发现页，扫码或点开链接即可引导安装运维客户端（如超然信）并添加本站。证书绑定成功后会自动关闭。"
       : @"已关闭：浏览器访问发现页将如同不存在（404），避免被探测；不影响本 App 内探测与运维。"];
-  self.discoverChip.text = [NSString stringWithFormat:@"  %@  ", discoverOn ? @"发现已开" : @"发现已关"];
-  self.discoverChip.backgroundColor = discoverOn
-      ? [UIColor.systemTealColor colorWithAlphaComponent:0.22]
-      : [UIColor.systemRedColor colorWithAlphaComponent:0.18];
+  [AutumnOpsUIControls applyChipKind:discoverOn ? AutumnOpsChipKindOn : AutumnOpsChipKindOff
+                              toChip:self.discoverChip
+                                text:discoverOn ? @"发现已开" : @"发现已关"];
   [self.discoverActionBtn setTitle:discoverOn ? @"关闭" : @"打开" forState:UIControlStateNormal];
-  if (discoverOn) {
-    self.discoverActionBtn.backgroundColor = UIColor.clearColor;
-    self.discoverActionBtn.layer.borderWidth = 1;
-    [self.discoverActionBtn setTitleColor:[UIColor colorWithRed:0x15 / 255.0 green:0x65 / 255.0 blue:0xC0 / 255.0 alpha:1] forState:UIControlStateNormal];
-  } else {
-    self.discoverActionBtn.backgroundColor = [UIColor colorWithRed:0x15 / 255.0 green:0x65 / 255.0 blue:0xC0 / 255.0 alpha:1];
-    self.discoverActionBtn.layer.borderWidth = 0;
-    [self.discoverActionBtn setTitleColor:UIColor.whiteColor forState:UIControlStateNormal];
-  }
+  [AutumnOpsUIControls applyStyle:discoverOn ? AutumnOpsButtonStyleOutlined : AutumnOpsButtonStyleFilled
+                         toButton:self.discoverActionBtn];
 
   [self.gateCard setBodyText:gateOn
       ? @"已开启：进入后台与运维接口时，除超管账号外，客户端 IP 还必须在「管理 IP」名单中。"
       : @"已关闭：仅校验超管账号，不再核对管理 IP。账号泄露时攻击者可从任意 IP 进入后台。"];
-  self.gateChip.text = [NSString stringWithFormat:@"  %@  ", gateOn ? @"已开" : @"已关"];
-  self.gateChip.backgroundColor = gateOn
-      ? [UIColor.systemTealColor colorWithAlphaComponent:0.22]
-      : [UIColor.systemRedColor colorWithAlphaComponent:0.18];
+  [AutumnOpsUIControls applyChipKind:gateOn ? AutumnOpsChipKindOn : AutumnOpsChipKindOff
+                              toChip:self.gateChip
+                                text:gateOn ? @"已开" : @"已关"];
   [self.gateActionBtn setTitle:gateOn ? @"关闭" : @"开启" forState:UIControlStateNormal];
-  if (gateOn) {
-    self.gateActionBtn.backgroundColor = UIColor.clearColor;
-    self.gateActionBtn.layer.borderWidth = 1;
-    [self.gateActionBtn setTitleColor:[UIColor colorWithRed:0x15 / 255.0 green:0x65 / 255.0 blue:0xC0 / 255.0 alpha:1] forState:UIControlStateNormal];
-  } else {
-    self.gateActionBtn.backgroundColor = [UIColor colorWithRed:0x15 / 255.0 green:0x65 / 255.0 blue:0xC0 / 255.0 alpha:1];
-    self.gateActionBtn.layer.borderWidth = 0;
-    [self.gateActionBtn setTitleColor:UIColor.whiteColor forState:UIControlStateNormal];
-  }
+  [AutumnOpsUIControls applyStyle:gateOn ? AutumnOpsButtonStyleOutlined : AutumnOpsButtonStyleFilled
+                         toButton:self.gateActionBtn];
 
   BOOL configured = self.clearTokenConfigured.boolValue;
   [self.tokenCard setBodyText:configured
       ? @"用于关闭管理 IP 校验、删除「当前访问 IP」等危险操作的二次确认。右侧「保存」可校验；改成新值后点「修改」须验证原令牌。"
       : @"尚未配置时，关闭门禁、删除当前访问 IP 等危险操作无法执行。可在此直接设置令牌（需已入驻运维证书）；配置后也可随时修改。"];
   NSString *chipText = @"未填写";
-  BOOL chipOn = NO;
-  if (self.clearTokenStatus == AutumnOpsClearTokenUIServerUnset) { chipText = @"未配置"; chipOn = NO; }
-  else if (self.clearTokenStatus == AutumnOpsClearTokenUIReady) { chipText = @"已就绪"; chipOn = YES; }
-  else if (self.clearTokenStatus == AutumnOpsClearTokenUIPending) { chipText = @"待保存"; chipOn = YES; }
-  self.clearTokenStatusChip.text = [NSString stringWithFormat:@"  %@  ", chipText];
-  self.clearTokenStatusChip.backgroundColor = chipOn
-      ? [UIColor.systemTealColor colorWithAlphaComponent:0.22]
-      : [UIColor.tertiarySystemFillColor colorWithAlphaComponent:1];
-  [self.clearTokenActionBtn setTitle:configured ? (self.clearTokenStatus == AutumnOpsClearTokenUIReady ? @"修改" : @"保存") : @"配置" forState:UIControlStateNormal];
+  AutumnOpsChipKind chipKind = AutumnOpsChipKindEmpty;
+  if (self.clearTokenStatus == AutumnOpsClearTokenUIServerUnset) { chipText = @"未配置"; chipKind = AutumnOpsChipKindUnset; }
+  else if (self.clearTokenStatus == AutumnOpsClearTokenUIReady) { chipText = @"已就绪"; chipKind = AutumnOpsChipKindReady; }
+  else if (self.clearTokenStatus == AutumnOpsClearTokenUISaved) { chipText = @"已保存"; chipKind = AutumnOpsChipKindSaved; }
+  else if (self.clearTokenStatus == AutumnOpsClearTokenUIPending) { chipText = @"待保存"; chipKind = AutumnOpsChipKindPending; }
+  else if (self.clearTokenStatus == AutumnOpsClearTokenUIError) { chipText = @"错误"; chipKind = AutumnOpsChipKindError; }
+  [AutumnOpsUIControls applyChipKind:chipKind toChip:self.clearTokenStatusChip text:chipText];
+  NSString *ph = configured ? @"输入令牌后保存校验，或修改后保存" : @"设置新的清除确认令牌";
+  self.clearTokenField.attributedPlaceholder = [[NSAttributedString alloc] initWithString:ph
+      attributes:@{NSForegroundColorAttributeName : [AutumnOpsUITheme.onSurfaceVariant colorWithAlphaComponent:0.7]}];
+  [self _refreshClearTokenActionTitle];
+  if (self.clearTokenError.length &&
+      (self.clearTokenStatus == AutumnOpsClearTokenUIError || self.clearTokenStatus == AutumnOpsClearTokenUIServerUnset)) {
+    self.clearTokenHint.text = self.clearTokenError;
+    self.clearTokenHint.textColor = (self.clearTokenStatus == AutumnOpsClearTokenUIServerUnset)
+        ? AutumnOpsUITheme.onSurfaceVariant
+        : AutumnOpsUITheme.onErrorContainer;
+    self.clearTokenHint.hidden = NO;
+  } else {
+    self.clearTokenHint.text = @"";
+    self.clearTokenHint.hidden = YES;
+  }
 
   self.claimBtn.hidden = self.currentIpInAdmin;
   [self.shareCard setBodyText:discoverOn
       ? @"生成发现链接。他人用运维客户端（如超然信）扫码或点开后可自动探测本站运维能力。"
       : @"发现页当前已关闭。仍可复制链接供运维客户端打开；浏览器打开将得到 404。"];
-  self.shareUrlLabel.text = [AutumnOpsDiscover shareUrlForBase:self.client.baseUrl] ?: @"";
+  self.shareUrlView.text = [AutumnOpsDiscover shareUrlForBase:self.client.baseUrl] ?: @"";
+}
+
+- (void)_clearTokenEdited {
+  NSString *t = [self.clearTokenField.text stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+  self.clearTokenClearBtn.hidden = (t.length == 0);
+  if ((self.clearTokenStatus == AutumnOpsClearTokenUIReady || self.clearTokenStatus == AutumnOpsClearTokenUISaved) &&
+      self.verifiedClearToken.length &&
+      ![t isEqualToString:self.verifiedClearToken]) {
+    self.clearTokenStatus = AutumnOpsClearTokenUIPending;
+    [AutumnOpsUIControls applyChipKind:AutumnOpsChipKindPending toChip:self.clearTokenStatusChip text:@"待保存"];
+  }
+  [self _refreshClearTokenActionTitle];
+}
+
+- (void)_refreshClearTokenActionTitle {
+  BOOL configuring = self.clearTokenConfigured == nil || !self.clearTokenConfigured.boolValue;
+  NSString *cur = self.clearTokenField.text ?: @"";
+  self.clearTokenClearBtn.hidden = (cur.length == 0);
+  // Flutter：configuring→配置；已校验且内容变化→修改；否则→保存
+  BOOL showModify = !configuring && self.verifiedClearToken.length &&
+      ![self.verifiedClearToken isEqualToString:cur];
+  NSString *actionTitle = configuring ? @"配置" : (showModify ? @"修改" : @"保存");
+  [self.clearTokenActionBtn setTitle:actionTitle forState:UIControlStateNormal];
+  BOOL canSave = cur.length > 0 && self.busyDepth == 0;
+  [AutumnOpsUIControls setControl:self.clearTokenActionBtn enabled:canSave];
+}
+
+- (void)_resetClearToken {
+  self.clearTokenField.text = @"";
+  self.clearTokenError = nil;
+  BOOL serverUnset = self.clearTokenConfigured != nil && !self.clearTokenConfigured.boolValue;
+  if (serverUnset) {
+    self.clearTokenStatus = AutumnOpsClearTokenUIServerUnset;
+    self.clearTokenError = @"尚未配置：填写新令牌后点右侧「保存」即可在本 App 完成配置";
+  } else {
+    self.clearTokenStatus = AutumnOpsClearTokenUIEmpty;
+  }
+  [self _reloadOverviewCards];
+}
+
+- (void)_showClearTokenError {
+  if (self.clearTokenStatus != AutumnOpsClearTokenUIError &&
+      self.clearTokenStatus != AutumnOpsClearTokenUIServerUnset) {
+    return;
+  }
+  NSString *msg = self.clearTokenError;
+  if (!msg.length) return;
+  BOOL unset = self.clearTokenStatus == AutumnOpsClearTokenUIServerUnset;
+  UIAlertController *a = [UIAlertController alertControllerWithTitle:unset ? @"尚未配置令牌" : @"操作失败"
+                                                             message:msg
+                                                      preferredStyle:UIAlertControllerStyleAlert];
+  [a addAction:[UIAlertAction actionWithTitle:@"知道了" style:UIAlertActionStyleDefault handler:nil]];
+  [self presentViewController:a animated:YES completion:nil];
 }
 
 - (NSString *)_readyClearTokenOrNil {
   NSString *t = [self.clearTokenField.text stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
-  if (self.clearTokenStatus == AutumnOpsClearTokenUIReady && self.verifiedClearToken.length && [t isEqualToString:self.verifiedClearToken]) {
+  BOOL verifiedState = self.clearTokenStatus == AutumnOpsClearTokenUIReady ||
+      self.clearTokenStatus == AutumnOpsClearTokenUISaved;
+  if (verifiedState && self.verifiedClearToken.length && [t isEqualToString:self.verifiedClearToken]) {
     return t;
   }
   return nil;
@@ -741,7 +782,10 @@ typedef NS_ENUM(NSInteger, AutumnOpsClearTokenUI) {
       [self _toast:@"关闭管理 IP 门禁需先在概览校验清除确认令牌"];
       return;
     }
-    [self _confirm:@"关闭管理 IP 门禁" body:@"关闭后未列入管理 IP 的访问将无法进入运维。确认关闭？" ok:^{
+    [self _confirm:@"关闭管理 IP 校验"
+              body:@"关闭后不再校验「管理 IP」名单：任意来源 IP 只要拿到超管账号，即可进入后台与运维接口。"
+                   @"管理 IP 列表仍会保留，但暂时不生效。仅在确认环境安全时关闭。确定？"
+                ok:^{
       [self _applyAdminIpEnable:NO clearToken:tok];
     }];
     return;
@@ -812,63 +856,103 @@ typedef NS_ENUM(NSInteger, AutumnOpsClearTokenUI) {
   [self _toast:@"已复制发现链接"];
 }
 
-- (void)_verifyClearToken {
-  NSString *t = [self.clearTokenField.text stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
-  AutumnOpsValidateResult *vr = [AutumnOpsValidators clearToken:t];
-  if (!vr.ok) { self.clearTokenHint.text = vr.error; return; }
-  [self _beginBusy];
-  [self.client gateVerifyClearToken:t completion:^(NSDictionary *data, NSError *error) {
-    [self _endBusy];
-    if (error) {
-      self.clearTokenStatus = AutumnOpsClearTokenUIPending;
-      self.clearTokenHint.text = error.localizedDescription;
-      return;
+/// 对齐 Flutter `_saveClearToken`：配置 / 修改走 set；已就绪同值再点则 verify。无独立「校验」按钮。
+- (void)_handleClearTokenFailure:(NSError *)error {
+  NSString *msg = error.localizedDescription ?: @"操作失败";
+  self.clearTokenError = msg;
+  if ([msg containsString:@"尚未配置清除确认令牌"]) {
+    self.clearTokenConfigured = @NO;
+    self.clearTokenStatus = AutumnOpsClearTokenUIServerUnset;
+  } else {
+    self.clearTokenStatus = AutumnOpsClearTokenUIError;
+  }
+  [self _reloadOverviewCards];
+}
+
+- (void)_markClearTokenReady:(NSString *)token toast:(NSString *)toast {
+  self.clearTokenConfigured = @YES;
+  self.verifiedClearToken = token;
+  self.clearTokenError = nil;
+  self.clearTokenStatus = AutumnOpsClearTokenUISaved;
+  [self _reloadOverviewCards];
+  if (toast.length) [self _toast:toast];
+  __weak typeof(self) weakSelf = self;
+  dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.9 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+    __strong typeof(weakSelf) self = weakSelf;
+    if (!self) return;
+    NSString *cur = [self.clearTokenField.text stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+    if ([cur isEqualToString:token] && [self.verifiedClearToken isEqualToString:token]) {
+      self.clearTokenStatus = AutumnOpsClearTokenUIReady;
+      [self _reloadOverviewCards];
     }
-    self.clearTokenStatus = AutumnOpsClearTokenUIReady;
-    self.verifiedClearToken = t;
-    self.clearTokenHint.text = @"令牌已就绪";
-    [self _reloadOverviewCards];
-  }];
+  });
 }
 
 - (void)_saveClearToken {
   NSString *t = [self.clearTokenField.text stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
   AutumnOpsValidateResult *vr = [AutumnOpsValidators clearToken:t];
-  if (!vr.ok) { self.clearTokenHint.text = vr.error; return; }
-  BOOL configured = self.clearTokenConfigured.boolValue;
-  if (configured && self.clearTokenStatus != AutumnOpsClearTokenUIReady) {
-    UIAlertController *a = [UIAlertController alertControllerWithTitle:@"验证原清除确认令牌" message:@"修改令牌前需验证当前令牌" preferredStyle:UIAlertControllerStyleAlert];
-    [a addTextFieldWithConfigurationHandler:^(UITextField *tf) { tf.secureTextEntry = YES; tf.placeholder = @"原令牌"; }];
-    [a addAction:[UIAlertAction actionWithTitle:@"取消" style:UIAlertActionStyleCancel handler:nil]];
-    [a addAction:[UIAlertAction actionWithTitle:@"继续" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
-      NSString *old = a.textFields.firstObject.text;
-      [self _beginBusy];
-      [self.client gateSetClearToken:t oldClearToken:old completion:^(NSDictionary *data, NSError *error) {
-        [self _endBusy];
-        if (error) { self.clearTokenHint.text = error.localizedDescription; return; }
-        self.clearTokenConfigured = @YES;
-        self.clearTokenStatus = AutumnOpsClearTokenUIReady;
-        self.verifiedClearToken = t;
-        self.clearTokenHint.text = @"已保存并就绪";
-        [self _reloadOverviewCards];
-      }];
-    }]];
-    [self presentViewController:a animated:YES completion:nil];
+  if (!vr.ok) {
+    self.clearTokenError = vr.error;
+    self.clearTokenStatus = AutumnOpsClearTokenUIError;
+    [self _reloadOverviewCards];
     return;
   }
-  NSString *old = (self.clearTokenStatus == AutumnOpsClearTokenUIReady) ? self.verifiedClearToken : nil;
+  BOOL configuring = self.clearTokenConfigured == nil || !self.clearTokenConfigured.boolValue;
+  BOOL modifying = !configuring &&
+      (self.verifiedClearToken.length == 0 || ![self.verifiedClearToken isEqualToString:t]);
+
+  if (configuring) {
+    [self _beginBusy];
+    [self.client gateSetClearToken:t oldClearToken:nil completion:^(NSDictionary *data, NSError *error) {
+      [self _endBusy];
+      if (error) { [self _handleClearTokenFailure:error]; return; }
+      [self _markClearTokenReady:t toast:@"已配置清除确认令牌"];
+    }];
+    return;
+  }
+
+  if (modifying) {
+    NSString *old = self.verifiedClearToken;
+    if (old.length == 0 || [old isEqualToString:t]) {
+      UIAlertController *a = [UIAlertController alertControllerWithTitle:@"验证原令牌"
+                                                                 message:@"修改清除确认令牌须先验证原令牌。"
+                                                          preferredStyle:UIAlertControllerStyleAlert];
+      [a addTextFieldWithConfigurationHandler:^(UITextField *tf) {
+        tf.secureTextEntry = YES;
+        tf.placeholder = @"原清除确认令牌";
+      }];
+      [a addAction:[UIAlertAction actionWithTitle:@"取消" style:UIAlertActionStyleCancel handler:nil]];
+      [a addAction:[UIAlertAction actionWithTitle:@"继续" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
+        NSString *entered = [a.textFields.firstObject.text stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+        AutumnOpsValidateResult *oldVr = [AutumnOpsValidators clearToken:entered];
+        if (!oldVr.ok) { [self _toast:oldVr.error ?: @"原令牌无效"]; return; }
+        [self _beginBusy];
+        [self.client gateSetClearToken:t oldClearToken:entered completion:^(NSDictionary *data, NSError *error) {
+          [self _endBusy];
+          if (error) { [self _handleClearTokenFailure:error]; return; }
+          [self _markClearTokenReady:t toast:@"已更新清除确认令牌"];
+        }];
+      }]];
+      [self presentViewController:a animated:YES completion:nil];
+      return;
+    }
+    [self _beginBusy];
+    [self.client gateSetClearToken:t oldClearToken:old completion:^(NSDictionary *data, NSError *error) {
+      [self _endBusy];
+      if (error) { [self _handleClearTokenFailure:error]; return; }
+      [self _markClearTokenReady:t toast:@"已更新清除确认令牌"];
+    }];
+    return;
+  }
+
+  // 已配置且与已校验令牌一致：再核对一次（Flutter 合并到「保存」）
   [self _beginBusy];
-  [self.client gateSetClearToken:t oldClearToken:old completion:^(NSDictionary *data, NSError *error) {
+  [self.client gateVerifyClearToken:t completion:^(NSDictionary *data, NSError *error) {
     [self _endBusy];
-    if (error) { self.clearTokenHint.text = error.localizedDescription; return; }
-    self.clearTokenConfigured = @YES;
-    self.clearTokenStatus = AutumnOpsClearTokenUIReady;
-    self.verifiedClearToken = t;
-    self.clearTokenHint.text = @"已保存并就绪";
-    [self _reloadOverviewCards];
+    if (error) { [self _handleClearTokenFailure:error]; return; }
+    [self _markClearTokenReady:t toast:@"令牌已就绪"];
   }];
 }
-
 - (void)_openRecovery {
   AutumnOpsRecoveryViewController *vc = [[AutumnOpsRecoveryViewController alloc] initWithSiteTitle:self.siteEntry.title baseUrl:self.client.baseUrl];
   [self.navigationController pushViewController:vc animated:YES];

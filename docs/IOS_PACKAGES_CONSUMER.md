@@ -44,15 +44,18 @@ pod install
 pod update AutumnOpsCore AutumnOpsUI
 ```
 
-### 2.2 发版钉 tag（可复现）
+### 2.2 宿主 `:git`（推荐）
 
-CocoaPods **不支持** Flutter 式 `git + path` 子目录一条声明。发版推荐：
+仓库**根目录**提供 `AutumnOpsCore.podspec` / `AutumnOpsUI.podspec`（`source_files` 指向 `ios/.../Classes`），供 CocoaPods 直接 `:git`（**不支持** Flutter 式 `git + 子目录 path`，也无可用 `:glob`）。
 
-1. 源仓打 **`ops-vX.Y.Z`**（与 Dart packages 同 tag）。
-2. 宿主用 **path 指向已 checkout 到该 tag 的 autumn-app 工作树**，或将 `ios/` 以 submodule / sparse checkout 固定 revision。
-3. 锁 `Podfile.lock`；升级时改 checkout + `pod update AutumnOpsUI`。
+```ruby
+pod 'AutumnOpsCore', :git => 'https://git.minclouds.com/henryxm/autumn-app.git', :branch => 'main'
+pod 'AutumnOpsUI',   :git => 'https://git.minclouds.com/henryxm/autumn-app.git', :branch => 'main'
+```
 
-`podspec` 内 `s.source` / `s.version` 与 tag 数字对齐（如 `0.1.0` ↔ `ops-v0.1.0`）。
+发版可复现：源仓打 **`ops-vX.Y.Z`**（与 Dart packages 同 tag），宿主改 `:tag => 'ops-vX.Y.Z'`，并锁 `Podfile.lock`。
+
+本机联调仍可用 §2.1 `:path` 指向 `ios/AutumnOps*` 子目录 podspec。
 
 ---
 

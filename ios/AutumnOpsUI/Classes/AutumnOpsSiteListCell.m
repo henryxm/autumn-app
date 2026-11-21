@@ -1,4 +1,5 @@
 #import "AutumnOpsSiteListCell.h"
+#import "AutumnOpsRuleRowChromeView.h"
 #import "AutumnOpsUITheme.h"
 #import <AutumnOpsCore/AutumnOpsCore.h>
 #import <Masonry/Masonry.h>
@@ -37,20 +38,18 @@
     _subtitleLabel.textColor = AutumnOpsUITheme.onSurfaceVariant;
     _subtitleLabel.numberOfLines = 0;
 
-    UIImageSymbolConfiguration *cfg =
-        [UIImageSymbolConfiguration configurationWithPointSize:18 weight:UIImageSymbolWeightRegular];
-
-    _renameBtn = [UIButton buttonWithType:UIButtonTypeSystem];
-    [_renameBtn setImage:[UIImage systemImageNamed:@"pencil" withConfiguration:cfg] forState:UIControlStateNormal];
-    _renameBtn.tintColor = AutumnOpsUITheme.onSurfaceVariant;
-    _renameBtn.accessibilityLabel = @"修改名称";
-    [_renameBtn addTarget:self action:@selector(_renameTapped) forControlEvents:UIControlEventTouchUpInside];
-
-    _deleteBtn = [UIButton buttonWithType:UIButtonTypeSystem];
-    [_deleteBtn setImage:[UIImage systemImageNamed:@"trash" withConfiguration:cfg] forState:UIControlStateNormal];
-    _deleteBtn.tintColor = AutumnOpsUITheme.onSurfaceVariant;
-    _deleteBtn.accessibilityLabel = @"从本机移除";
-    [_deleteBtn addTarget:self action:@selector(_deleteTapped) forControlEvents:UIControlEventTouchUpInside];
+    // 与 Flutter OpsRuleRowChrome / IP 行动作钮：槽 32、图标 20 scaleSmall、onSurfaceVariant
+    UIColor *actionColor = AutumnOpsUITheme.onSurfaceVariant;
+    _renameBtn = [AutumnOpsRuleRowChromeView iconActionSystemName:@"pencil"
+                                                            color:actionColor
+                                                           target:self
+                                                           action:@selector(_renameTapped)
+                                              accessibilityLabel:@"修改名称"];
+    _deleteBtn = [AutumnOpsRuleRowChromeView iconActionSystemName:@"trash"
+                                                            color:actionColor
+                                                           target:self
+                                                           action:@selector(_deleteTapped)
+                                              accessibilityLabel:@"从本机移除"];
 
     UIStackView *textCol = [[UIStackView alloc] initWithArrangedSubviews:@[ _titleLabel, _subtitleLabel ]];
     textCol.axis = UILayoutConstraintAxisVertical;
@@ -59,7 +58,16 @@
     [_titleLabel setContentHuggingPriority:UILayoutPriorityDefaultLow forAxis:UILayoutConstraintAxisHorizontal];
     [_subtitleLabel setContentHuggingPriority:UILayoutPriorityDefaultLow forAxis:UILayoutConstraintAxisHorizontal];
 
-    UIStackView *row = [[UIStackView alloc] initWithArrangedSubviews:@[ textCol, _renameBtn, _deleteBtn ]];
+    // 修改在上、删除在下，右对齐
+    UIStackView *actionsCol = [[UIStackView alloc] initWithArrangedSubviews:@[ _renameBtn, _deleteBtn ]];
+    actionsCol.axis = UILayoutConstraintAxisVertical;
+    actionsCol.alignment = UIStackViewAlignmentTrailing;
+    actionsCol.spacing = 0;
+    [actionsCol setContentHuggingPriority:UILayoutPriorityRequired forAxis:UILayoutConstraintAxisHorizontal];
+    [actionsCol setContentCompressionResistancePriority:UILayoutPriorityRequired
+                                                forAxis:UILayoutConstraintAxisHorizontal];
+
+    UIStackView *row = [[UIStackView alloc] initWithArrangedSubviews:@[ textCol, actionsCol ]];
     row.axis = UILayoutConstraintAxisHorizontal;
     row.alignment = UIStackViewAlignmentCenter;
     row.spacing = 4;
@@ -72,12 +80,6 @@
     }];
     [row mas_makeConstraints:^(MASConstraintMaker *make) {
       make.edges.equalTo(self.card).insets(UIEdgeInsetsMake(12, 16, 12, 8));
-    }];
-    [_renameBtn mas_makeConstraints:^(MASConstraintMaker *make) {
-      make.width.height.mas_equalTo(40);
-    }];
-    [_deleteBtn mas_makeConstraints:^(MASConstraintMaker *make) {
-      make.width.height.mas_equalTo(40);
     }];
   }
   return self;

@@ -1,6 +1,6 @@
 name: autumn_ops_shell
 description: Standalone Autumn Ops console shell. Depends on autumn_ops_ui.
-version: 0.1.19+1
+version: 0.1.20+1
 publish_to: 'none'
 
 environment:

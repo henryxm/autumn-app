@@ -31,7 +31,7 @@ NS_ASSUME_NONNULL_BEGIN
 + (UIButton *)textAction:(NSString *)title target:(nullable id)target action:(nullable SEL)action;
 + (UIButton *)destructiveTextAction:(NSString *)title target:(nullable id)target action:(nullable SEL)action;
 
-/// 小图标按钮：默认边长 28、图标 18。
+/// 小图标按钮：边长 32、图标 20（scaleSmall），对齐 Flutter OpsRuleRowChrome。
 + (UIButton *)iconActionSystemName:(NSString *)systemName
                              color:(UIColor *)color
                             target:(nullable id)target

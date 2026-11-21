@@ -1,6 +1,6 @@
 name: autumn_ops_ui
 description: Material UI for Autumn ops multi-site list/add/manage. Depends on autumn_ops.
-version: 0.1.19
+version: 0.1.20
 publish_to: 'none'
 
 environment:

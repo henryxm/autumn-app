@@ -49,8 +49,8 @@ pod update AutumnOpsCore AutumnOpsUI
 仓库**根目录**提供 `AutumnOpsCore.podspec` / `AutumnOpsUI.podspec`（`source_files` 指向 `ios/.../Classes`），供 CocoaPods 直接 `:git`（**不支持** Flutter 式 `git + 子目录 path`，也无可用 `:glob`）。
 
 ```ruby
-pod 'AutumnOpsCore', :git => 'https://git.minclouds.com/henryxm/autumn-app.git', :tag => 'ops-v0.1.19'
-pod 'AutumnOpsUI',   :git => 'https://git.minclouds.com/henryxm/autumn-app.git', :tag => 'ops-v0.1.19'
+pod 'AutumnOpsCore', :git => 'https://git.minclouds.com/henryxm/autumn-app.git', :tag => 'ops-v0.1.20'
+pod 'AutumnOpsUI',   :git => 'https://git.minclouds.com/henryxm/autumn-app.git', :tag => 'ops-v0.1.20'
 ```
 
 发版可复现：源仓打 **`ops-vX.Y.Z`**（与 Dart packages 同 tag），宿主钉 `:tag => 'ops-vX.Y.Z'`，并锁 `Podfile.lock`。联调可临时 `:branch => 'main'`。
@@ -111,7 +111,7 @@ pod 'AutumnOpsUI',   :git => 'https://git.minclouds.com/henryxm/autumn-app.git',
 - [ ] 普通 https / 旧 `/ops/discover` **不**进运维 Gate
 - [ ] 管理 IP / clearToken / 删当前 IP 门禁与 Flutter 一致
 - [ ] 运维消息 / 收藏入口已挂到 Gate（不再是宿主侧占位 toast）
-- [ ] `Podfile.lock` 可复现；跟版步骤已写入宿主文档；宿主 `pod update AutumnOpsUI`（≥0.1.19）+ `AutumnOpsCore`（≥0.1.19）；`:tag => 'ops-v0.1.19'`
+- [ ] `Podfile.lock` 可复现；跟版步骤已写入宿主文档；宿主 `pod update AutumnOpsUI`（≥0.1.20）+ `AutumnOpsCore`（≥0.1.20）；`:tag => 'ops-v0.1.20'`
 
 ---
 

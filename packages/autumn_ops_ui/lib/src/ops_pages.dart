@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:uuid/uuid.dart';
 
+import 'ops_chrome.dart';
 import 'ops_payload_io.dart';
 import 'ops_fused_field.dart';
 import 'ops_manage_page.dart';
@@ -139,40 +140,51 @@ class _OpsSitesPageState extends State<OpsSitesPage> {
                                   ],
                                 ),
                               ),
-                              IconButton(
-                                icon: const Icon(Icons.edit_outlined),
-                                tooltip: '修改名称',
-                                onPressed: () => _renameSite(s),
-                              ),
-                              IconButton(
-                                icon: const Icon(Icons.delete_outline),
-                                tooltip: '从本机移除',
-                                onPressed: () async {
-                                  final ok = await showDialog<bool>(
-                                    context: context,
-                                    builder: (d) => AlertDialog(
-                                      title: const Text('删除站点'),
-                                      content: Text(
-                                        '从本机列表移除「${s.title.isEmpty ? s.baseUrl : s.title}」？'
-                                        '不会自动吊销服务端证书。',
-                                      ),
-                                      actions: [
-                                        TextButton(
-                                          onPressed: () => Navigator.pop(d, false),
-                                          child: const Text('取消'),
+                              // 修改在上、删除在下；尺寸/色与 OpsRuleRowChrome 动作钮锁死
+                              Column(
+                                mainAxisSize: MainAxisSize.min,
+                                crossAxisAlignment: CrossAxisAlignment.end,
+                                children: [
+                                  _siteActionIcon(
+                                    tooltip: '修改名称',
+                                    icon: Icons.edit_outlined,
+                                    color: scheme.onSurfaceVariant,
+                                    onPressed: () => _renameSite(s),
+                                  ),
+                                  _siteActionIcon(
+                                    tooltip: '从本机移除',
+                                    icon: Icons.delete_outline,
+                                    color: scheme.onSurfaceVariant,
+                                    onPressed: () async {
+                                      final ok = await showDialog<bool>(
+                                        context: context,
+                                        builder: (d) => AlertDialog(
+                                          title: const Text('删除站点'),
+                                          content: Text(
+                                            '从本机列表移除「${s.title.isEmpty ? s.baseUrl : s.title}」？'
+                                            '不会自动吊销服务端证书。',
+                                          ),
+                                          actions: [
+                                            TextButton(
+                                              onPressed: () =>
+                                                  Navigator.pop(d, false),
+                                              child: const Text('取消'),
+                                            ),
+                                            FilledButton(
+                                              onPressed: () =>
+                                                  Navigator.pop(d, true),
+                                              child: const Text('删除'),
+                                            ),
+                                          ],
                                         ),
-                                        FilledButton(
-                                          onPressed: () => Navigator.pop(d, true),
-                                          child: const Text('删除'),
-                                        ),
-                                      ],
-                                    ),
-                                  );
-                                  if (ok == true) {
-                                    await _store?.removeSite(s.id);
-                                    await _reload();
-                                  }
-                                },
+                                      );
+                                      if (ok == true) {
+                                        await _store?.removeSite(s.id);
+                                        await _reload();
+                                      }
+                                    },
+                                  ),
+                                ],
                               ),
                             ],
                           ),
@@ -184,59 +196,47 @@ class _OpsSitesPageState extends State<OpsSitesPage> {
     );
   }
 
-  Future<void> _renameSite(OpsSiteEntry s) async {
-    final ctrl = TextEditingController(text: s.title);
-    String? fieldError;
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (d) {
-        return StatefulBuilder(
-          builder: (ctx, setLocal) {
-            return AlertDialog(
-              title: const Text('修改名称'),
-              content: TextField(
-                controller: ctrl,
-                autofocus: true,
-                maxLength: 64,
-                decoration: InputDecoration(
-                  hintText: '显示名称（选填）',
-                  errorText: fieldError,
-                  counterText: '',
-                ),
-                onSubmitted: (_) {
-                  final check = OpsValidators.siteTitle(ctrl.text);
-                  if (!check.ok) {
-                    setLocal(() => fieldError = check.error);
-                    return;
-                  }
-                  Navigator.pop(d, true);
-                },
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(d, false),
-                  child: const Text('取消'),
-                ),
-                FilledButton(
-                  onPressed: () {
-                    final check = OpsValidators.siteTitle(ctrl.text);
-                    if (!check.ok) {
-                      setLocal(() => fieldError = check.error);
-                      return;
-                    }
-                    Navigator.pop(d, true);
-                  },
-                  child: const Text('保存'),
-                ),
-              ],
-            );
-          },
-        );
-      },
+  /// 与 [OpsRuleRowChrome.actionSlotWidth] / [OpsRuleRowChrome.actionIconSize] 对齐。
+  Widget _siteActionIcon({
+    required String tooltip,
+    required IconData icon,
+    required Color color,
+    required VoidCallback? onPressed,
+  }) {
+    return SizedBox(
+      width: OpsRuleRowChrome.actionSlotWidth,
+      height: OpsRuleRowChrome.actionSlotWidth,
+      child: IconButton(
+        tooltip: tooltip,
+        onPressed: onPressed,
+        padding: EdgeInsets.zero,
+        alignment: Alignment.center,
+        style: IconButton.styleFrom(
+          padding: EdgeInsets.zero,
+          minimumSize: const Size(
+            OpsRuleRowChrome.actionSlotWidth,
+            OpsRuleRowChrome.actionSlotWidth,
+          ),
+          maximumSize: const Size(
+            OpsRuleRowChrome.actionSlotWidth,
+            OpsRuleRowChrome.actionSlotWidth,
+          ),
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          visualDensity: VisualDensity.compact,
+        ),
+        icon: Icon(icon, size: OpsRuleRowChrome.actionIconSize, color: color),
+      ),
     );
-    final next = ctrl.text.trim();
-    ctrl.dispose();
-    if (ok != true || !mounted) return;
+  }
+
+  Future<void> _renameSite(OpsSiteEntry s) async {
+    // 对话框内 StatefulWidget 持有 Controller，避免 pop 后立刻 dispose 触发
+    // `_dependents.isEmpty` 断言（退场动画未卸完 TextField 仍依赖 controller）。
+    final next = await showDialog<String>(
+      context: context,
+      builder: (_) => _RenameSiteDialog(initialTitle: s.title),
+    );
+    if (next == null || !mounted) return;
     final check = OpsValidators.siteTitle(next);
     if (!check.ok) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -247,6 +247,70 @@ class _OpsSitesPageState extends State<OpsSitesPage> {
     s.title = next;
     await _store?.upsertSite(s);
     await _reload();
+  }
+}
+
+/// 改名弹窗：Controller 生命周期与路由同退，禁止在 await showDialog 后手动 dispose。
+class _RenameSiteDialog extends StatefulWidget {
+  const _RenameSiteDialog({required this.initialTitle});
+
+  final String initialTitle;
+
+  @override
+  State<_RenameSiteDialog> createState() => _RenameSiteDialogState();
+}
+
+class _RenameSiteDialogState extends State<_RenameSiteDialog> {
+  late final TextEditingController _ctrl;
+  String? _fieldError;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = TextEditingController(text: widget.initialTitle);
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    final check = OpsValidators.siteTitle(_ctrl.text);
+    if (!check.ok) {
+      setState(() => _fieldError = check.error);
+      return;
+    }
+    Navigator.pop(context, _ctrl.text.trim());
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('修改名称'),
+      content: TextField(
+        controller: _ctrl,
+        autofocus: true,
+        maxLength: 64,
+        decoration: InputDecoration(
+          hintText: '显示名称（选填）',
+          errorText: _fieldError,
+          counterText: '',
+        ),
+        onSubmitted: (_) => _submit(),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('取消'),
+        ),
+        FilledButton(
+          onPressed: _submit,
+          child: const Text('保存'),
+        ),
+      ],
+    );
   }
 }
 

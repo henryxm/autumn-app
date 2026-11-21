@@ -13,10 +13,23 @@ enum OpsIpStatusMode {
   available,
 }
 
-typedef OpsIpPageLoader = Future<OpsIpPage> Function({required int page, required int limit});
-typedef OpsIpToggle = Future<void> Function(String ip, {required bool enable});
+/// 启停过滤：服务端 `forbidden`/`available` 等值筛选。
+enum OpsIpActiveFilter {
+  all,
+  active,
+  inactive,
+}
 
-/// 统一的运维 IP 列表：下拉刷新、触底分页、添加/认领、启用停用、删除。
+typedef OpsIpPageLoader = Future<OpsIpPage> Function({
+  required int page,
+  required int limit,
+  required OpsIpActiveFilter filter,
+});
+typedef OpsIpToggle = Future<void> Function(String ip, {required bool enable});
+typedef OpsIpAdd = Future<OpsIpUpsertResult> Function({String? ip, bool claimCurrent});
+
+/// 统一的运维 IP 列表：下拉刷新、触底静默分页、添加/认领、启用停用、删除；
+/// 启停过滤在计数条右侧（文案固有宽，无「加载更多」按钮）。
 class OpsIpListPanel extends StatefulWidget {
   const OpsIpListPanel({
     super.key,
@@ -45,7 +58,7 @@ class OpsIpListPanel extends StatefulWidget {
   final String description;
   final OpsIpStatusMode statusMode;
   final OpsIpPageLoader loadPage;
-  final Future<String> Function({String? ip, bool claimCurrent}) onAdd;
+  final OpsIpAdd onAdd;
   final Future<void> Function(String ip, {String? clearToken}) onRemove;
 
   /// [enable]=true 表示启用（白名单取消禁用 / 黑名单设为生效）。
@@ -85,8 +98,15 @@ class _OpsIpListPanelState extends State<OpsIpListPanel> {
   bool _loading = false;
   bool _loadingMore = false;
   String? _error;
+  OpsIpActiveFilter _activeFilter = OpsIpActiveFilter.all;
 
   static const _limit = 20;
+
+  String get _filterActiveLabel =>
+      widget.statusMode == OpsIpStatusMode.available ? '生效中' : '启用中';
+
+  String get _filterInactiveLabel =>
+      widget.statusMode == OpsIpStatusMode.available ? '已停用' : '已禁用';
 
   @override
   void initState() {
@@ -174,7 +194,7 @@ class _OpsIpListPanelState extends State<OpsIpListPanel> {
       _error = null;
     });
     try {
-      final page = await widget.loadPage(page: 1, limit: _limit);
+      final page = await widget.loadPage(page: 1, limit: _limit, filter: _activeFilter);
       if (!mounted) return;
       setState(() {
         _replaceRows(
@@ -199,7 +219,7 @@ class _OpsIpListPanelState extends State<OpsIpListPanel> {
     setState(() => _loadingMore = true);
     try {
       final next = _page + 1;
-      final page = await widget.loadPage(page: next, limit: _limit);
+      final page = await widget.loadPage(page: next, limit: _limit, filter: _activeFilter);
       if (!mounted) return;
       setState(() {
         _appendRows(
@@ -215,6 +235,31 @@ class _OpsIpListPanelState extends State<OpsIpListPanel> {
       setState(() => _loadingMore = false);
       _toast(OpsErrorMessage.of(e));
     }
+  }
+
+  Future<void> _setFilter(OpsIpActiveFilter filter) async {
+    if (_activeFilter == filter) return;
+    setState(() => _activeFilter = filter);
+    await _reload();
+  }
+
+  /// 添加/认领后：强制「全部」过滤，置顶该 IP，便于启停/删除。
+  Future<void> _afterUpsert(OpsIpUpsertResult result) async {
+    _activeFilter = OpsIpActiveFilter.all;
+    await _reload();
+    if (!mounted) return;
+    setState(() {
+      final i = _rows.indexWhere((e) => e.ip == result.row.ip);
+      if (i > 0) {
+        final row = _rows.removeAt(i);
+        _rows.insert(0, row);
+      } else if (i < 0) {
+        _rows.insert(0, result.row);
+        _seenIps.add(result.row.ip);
+        _count = _count + 1;
+      }
+    });
+    _toast(result.existed ? '已存在，已定位：${result.row.ip}' : '已添加：${result.row.ip}');
   }
 
   String _statusLabel(OpsIpRow row) {
@@ -293,10 +338,9 @@ class _OpsIpListPanelState extends State<OpsIpListPanel> {
       return;
     }
     await _wrapBusy(() async {
-      final saved = await widget.onAdd(ip: ip);
+      final result = await widget.onAdd(ip: ip);
       _ipCtrl.clear();
-      _toast('已添加：$saved');
-      await _reload();
+      await _afterUpsert(result);
       widget.onMembershipMayChange?.call();
     });
   }
@@ -369,14 +413,48 @@ class _OpsIpListPanelState extends State<OpsIpListPanel> {
     );
   }
 
-  Widget _buildCountBar() {
+  /// 计数条右侧过滤：按文案固有宽横排，贴右（原「加载更多」位）。
+  Widget _buildFilterTrailing(ColorScheme scheme) {
+    Widget chip(String label, OpsIpActiveFilter value) {
+      final selected = _activeFilter == value;
+      final enabled = !widget.busy && !_loading;
+      return GestureDetector(
+        onTap: enabled && !selected ? () => _setFilter(value) : null,
+        behavior: HitTestBehavior.opaque,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+              color: !enabled
+                  ? scheme.onSurface.withValues(alpha: 0.38)
+                  : selected
+                      ? scheme.primary
+                      : scheme.onSurfaceVariant,
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        chip('全部', OpsIpActiveFilter.all),
+        chip(_filterActiveLabel, OpsIpActiveFilter.active),
+        chip(_filterInactiveLabel, OpsIpActiveFilter.inactive),
+      ],
+    );
+  }
+
+  Widget _buildCountBar(ColorScheme scheme) {
     return OpsCountChipBar(
       loaded: _rows.length,
       total: _count,
-      hasMore: _hasMore && !_loading && _rows.isNotEmpty,
-      loadingMore: _loadingMore,
-      onLoadMore: (widget.busy || _loadingMore) ? null : _loadMore,
       emptyLabel: '暂无记录',
+      trailing: _buildFilterTrailing(scheme),
     );
   }
 
@@ -418,9 +496,8 @@ class _OpsIpListPanelState extends State<OpsIpListPanel> {
                 onPressed: widget.busy
                     ? null
                     : () => _wrapBusy(() async {
-                          final ip = await widget.onAdd(claimCurrent: true);
-                          _toast('已加入：$ip');
-                          await _reload();
+                          final result = await widget.onAdd(claimCurrent: true);
+                          await _afterUpsert(result);
                           widget.onMembershipMayChange?.call();
                         }),
                 icon: const Icon(Icons.my_location, size: 18),
@@ -429,7 +506,7 @@ class _OpsIpListPanelState extends State<OpsIpListPanel> {
             ),
           ],
           const SizedBox(height: 12),
-          _buildCountBar(),
+          _buildCountBar(scheme),
           const SizedBox(height: 8),
           if (_loading && _rows.isEmpty)
             const Padding(

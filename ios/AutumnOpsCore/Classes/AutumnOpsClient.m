@@ -213,16 +213,21 @@
 
 #pragma mark - Admin APIs
 
-- (void)adminIpListPage:(NSInteger)page limit:(NSInteger)limit completion:(AutumnOpsIpPageBlock)completion {
-  [self _authedPost:@"/ops/api/v1/adminip/list" body:@{ @"page": @(page), @"limit": @(limit) } completion:^(NSDictionary *data, NSError *error) {
+- (void)adminIpListPage:(NSInteger)page limit:(NSInteger)limit forbidden:(NSNumber *)forbidden completion:(AutumnOpsIpPageBlock)completion {
+  NSMutableDictionary *b = [@{ @"page": @(page), @"limit": @(limit) } mutableCopy];
+  if (forbidden != nil) b[@"forbidden"] = forbidden;
+  [self _authedPost:@"/ops/api/v1/adminip/list" body:b completion:^(NSDictionary *data, NSError *error) {
     if (error) { completion(nil, error); return; }
     completion([AutumnOpsIpPage fromJSON:data], nil);
   }];
 }
-- (void)adminIpAdd:(NSString *)ip claimCurrent:(BOOL)claimCurrent completion:(AutumnOpsDictBlock)completion {
+- (void)adminIpAdd:(NSString *)ip claimCurrent:(BOOL)claimCurrent completion:(AutumnOpsIpUpsertBlock)completion {
   NSMutableDictionary *b = [@{ @"claimCurrent": @(claimCurrent) } mutableCopy];
   if (ip.length) b[@"ip"] = ip;
-  [self _authedPost:@"/ops/api/v1/adminip/add" body:b completion:completion];
+  [self _authedPost:@"/ops/api/v1/adminip/add" body:b completion:^(NSDictionary *data, NSError *error) {
+    if (error) { completion(nil, error); return; }
+    completion([AutumnOpsIpUpsertResult fromJSON:data], nil);
+  }];
 }
 - (void)adminIpRemove:(NSString *)ip clearToken:(NSString *)clearToken completion:(AutumnOpsDictBlock)completion {
   NSMutableDictionary *b = [@{ @"ip": ip ?: @"" } mutableCopy];
@@ -236,16 +241,21 @@
   [self _authedPost:@"/ops/api/v1/currentIp" body:@{} completion:completion];
 }
 
-- (void)ipWhiteListPage:(NSInteger)page limit:(NSInteger)limit completion:(AutumnOpsIpPageBlock)completion {
-  [self _authedPost:@"/ops/api/v1/ipwhite/list" body:@{ @"page": @(page), @"limit": @(limit) } completion:^(NSDictionary *data, NSError *error) {
+- (void)ipWhiteListPage:(NSInteger)page limit:(NSInteger)limit forbidden:(NSNumber *)forbidden completion:(AutumnOpsIpPageBlock)completion {
+  NSMutableDictionary *b = [@{ @"page": @(page), @"limit": @(limit) } mutableCopy];
+  if (forbidden != nil) b[@"forbidden"] = forbidden;
+  [self _authedPost:@"/ops/api/v1/ipwhite/list" body:b completion:^(NSDictionary *data, NSError *error) {
     if (error) { completion(nil, error); return; }
     completion([AutumnOpsIpPage fromJSON:data], nil);
   }];
 }
-- (void)ipWhiteAdd:(NSString *)ip claimCurrent:(BOOL)claimCurrent completion:(AutumnOpsDictBlock)completion {
+- (void)ipWhiteAdd:(NSString *)ip claimCurrent:(BOOL)claimCurrent completion:(AutumnOpsIpUpsertBlock)completion {
   NSMutableDictionary *b = [@{ @"claimCurrent": @(claimCurrent) } mutableCopy];
   if (ip.length) b[@"ip"] = ip;
-  [self _authedPost:@"/ops/api/v1/ipwhite/add" body:b completion:completion];
+  [self _authedPost:@"/ops/api/v1/ipwhite/add" body:b completion:^(NSDictionary *data, NSError *error) {
+    if (error) { completion(nil, error); return; }
+    completion([AutumnOpsIpUpsertResult fromJSON:data], nil);
+  }];
 }
 - (void)ipWhiteRemove:(NSString *)ip clearToken:(NSString *)clearToken completion:(AutumnOpsDictBlock)completion {
   NSMutableDictionary *b = [@{ @"ip": ip ?: @"" } mutableCopy];
@@ -256,14 +266,19 @@
   [self _authedPost:@"/ops/api/v1/ipwhite/setForbidden" body:@{ @"ip": ip ?: @"", @"forbidden": @(forbidden ? 1 : 0) } completion:completion];
 }
 
-- (void)ipBlackListPage:(NSInteger)page limit:(NSInteger)limit completion:(AutumnOpsIpPageBlock)completion {
-  [self _authedPost:@"/ops/api/v1/ipblack/list" body:@{ @"page": @(page), @"limit": @(limit) } completion:^(NSDictionary *data, NSError *error) {
+- (void)ipBlackListPage:(NSInteger)page limit:(NSInteger)limit available:(NSNumber *)available completion:(AutumnOpsIpPageBlock)completion {
+  NSMutableDictionary *b = [@{ @"page": @(page), @"limit": @(limit) } mutableCopy];
+  if (available != nil) b[@"available"] = available;
+  [self _authedPost:@"/ops/api/v1/ipblack/list" body:b completion:^(NSDictionary *data, NSError *error) {
     if (error) { completion(nil, error); return; }
     completion([AutumnOpsIpPage fromJSON:data], nil);
   }];
 }
-- (void)ipBlackAdd:(NSString *)ip completion:(AutumnOpsDictBlock)completion {
-  [self _authedPost:@"/ops/api/v1/ipblack/add" body:@{ @"ip": ip ?: @"" } completion:completion];
+- (void)ipBlackAdd:(NSString *)ip completion:(AutumnOpsIpUpsertBlock)completion {
+  [self _authedPost:@"/ops/api/v1/ipblack/add" body:@{ @"ip": ip ?: @"" } completion:^(NSDictionary *data, NSError *error) {
+    if (error) { completion(nil, error); return; }
+    completion([AutumnOpsIpUpsertResult fromJSON:data], nil);
+  }];
 }
 - (void)ipBlackRemove:(NSString *)ip completion:(AutumnOpsDictBlock)completion {
   [self _authedPost:@"/ops/api/v1/ipblack/remove" body:@{ @"ip": ip ?: @"" } completion:completion];

@@ -529,6 +529,26 @@ typedef NS_ENUM(NSInteger, AutumnOpsClearTokenUI) {
   self.blackPanel.currentIp = self.currentIp ?: @"";
 }
 
+/// 管理/白名单 list：`forbidden` 0=启用 1=禁用；全部不传。
+- (NSNumber *)_forbiddenParam:(AutumnOpsIpActiveFilter)filter {
+  switch (filter) {
+    case AutumnOpsIpActiveFilterActive: return @0;
+    case AutumnOpsIpActiveFilterInactive: return @1;
+    case AutumnOpsIpActiveFilterAll:
+    default: return nil;
+  }
+}
+
+/// 黑名单 list：`available` 0=生效 1=停用；全部不传。
+- (NSNumber *)_availableParam:(AutumnOpsIpActiveFilter)filter {
+  switch (filter) {
+    case AutumnOpsIpActiveFilterActive: return @0;
+    case AutumnOpsIpActiveFilterInactive: return @1;
+    case AutumnOpsIpActiveFilterAll:
+    default: return nil;
+  }
+}
+
 - (AutumnOpsIpListPanelView *)_makeAdminIpPanel {
   __weak typeof(self) weakSelf = self;
   AutumnOpsIpPanelToast toast = ^(NSString *msg) { [weakSelf _toast:msg]; };
@@ -542,17 +562,14 @@ typedef NS_ENUM(NSInteger, AutumnOpsClearTokenUI) {
 requireClearTokenForCurrent:YES
     rejectPolicyBlackIp:NO
              header:nil
-           loadPage:^(NSInteger page, NSInteger limit, void (^done)(AutumnOpsIpPage *, NSError *)) {
+           loadPage:^(NSInteger page, NSInteger limit, AutumnOpsIpActiveFilter filter, void (^done)(AutumnOpsIpPage *, NSError *)) {
              [weakSelf.client ensureSession:^(NSError *error) {
                if (error) { done(nil, error); return; }
-               [weakSelf.client adminIpListPage:page limit:limit completion:done];
+               [weakSelf.client adminIpListPage:page limit:limit forbidden:[weakSelf _forbiddenParam:filter] completion:done];
              }];
            }
-              onAdd:^(NSString *ip, BOOL claimCurrent, void (^done)(NSString *, NSError *)) {
-                [weakSelf.client adminIpAdd:ip claimCurrent:claimCurrent completion:^(NSDictionary *data, NSError *error) {
-                  if (error) done(nil, error);
-                  else done([NSString stringWithFormat:@"%@", data[@"ip"] ?: (ip ?: @"")], nil);
-                }];
+              onAdd:^(NSString *ip, BOOL claimCurrent, void (^done)(AutumnOpsIpUpsertResult *, NSError *)) {
+                [weakSelf.client adminIpAdd:ip claimCurrent:claimCurrent completion:done];
               }
            onRemove:^(NSString *ip, NSString *clearToken, void (^done)(NSError *)) {
              [weakSelf.client adminIpRemove:ip clearToken:clearToken completion:^(NSDictionary *data, NSError *error) {
@@ -583,17 +600,14 @@ onMembershipMayChange:^{ [weakSelf _refreshAll]; }
 requireClearTokenForCurrent:YES
     rejectPolicyBlackIp:NO
              header:nil
-           loadPage:^(NSInteger page, NSInteger limit, void (^done)(AutumnOpsIpPage *, NSError *)) {
+           loadPage:^(NSInteger page, NSInteger limit, AutumnOpsIpActiveFilter filter, void (^done)(AutumnOpsIpPage *, NSError *)) {
              [weakSelf.client ensureSession:^(NSError *error) {
                if (error) { done(nil, error); return; }
-               [weakSelf.client ipWhiteListPage:page limit:limit completion:done];
+               [weakSelf.client ipWhiteListPage:page limit:limit forbidden:[weakSelf _forbiddenParam:filter] completion:done];
              }];
            }
-              onAdd:^(NSString *ip, BOOL claimCurrent, void (^done)(NSString *, NSError *)) {
-                [weakSelf.client ipWhiteAdd:ip claimCurrent:claimCurrent completion:^(NSDictionary *data, NSError *error) {
-                  if (error) done(nil, error);
-                  else done([NSString stringWithFormat:@"%@", data[@"ip"] ?: (ip ?: @"")], nil);
-                }];
+              onAdd:^(NSString *ip, BOOL claimCurrent, void (^done)(AutumnOpsIpUpsertResult *, NSError *)) {
+                [weakSelf.client ipWhiteAdd:ip claimCurrent:claimCurrent completion:done];
               }
            onRemove:^(NSString *ip, NSString *clearToken, void (^done)(NSError *)) {
              [weakSelf.client ipWhiteRemove:ip clearToken:clearToken completion:^(NSDictionary *data, NSError *error) {
@@ -679,18 +693,15 @@ onMembershipMayChange:^{ [weakSelf _refreshAll]; }
 requireClearTokenForCurrent:NO
     rejectPolicyBlackIp:YES
              header:[self _makeBlackFirewallHeader]
-           loadPage:^(NSInteger page, NSInteger limit, void (^done)(AutumnOpsIpPage *, NSError *)) {
+           loadPage:^(NSInteger page, NSInteger limit, AutumnOpsIpActiveFilter filter, void (^done)(AutumnOpsIpPage *, NSError *)) {
              [weakSelf.client ensureSession:^(NSError *error) {
                if (error) { done(nil, error); return; }
-               [weakSelf.client ipBlackListPage:page limit:limit completion:done];
+               [weakSelf.client ipBlackListPage:page limit:limit available:[weakSelf _availableParam:filter] completion:done];
              }];
            }
-              onAdd:^(NSString *ip, BOOL claimCurrent, void (^done)(NSString *, NSError *)) {
+              onAdd:^(NSString *ip, BOOL claimCurrent, void (^done)(AutumnOpsIpUpsertResult *, NSError *)) {
                 (void)claimCurrent;
-                [weakSelf.client ipBlackAdd:ip completion:^(NSDictionary *data, NSError *error) {
-                  if (error) done(nil, error);
-                  else done([NSString stringWithFormat:@"%@", data[@"ip"] ?: (ip ?: @"")], nil);
-                }];
+                [weakSelf.client ipBlackAdd:ip completion:done];
               }
            onRemove:^(NSString *ip, NSString *clearToken, void (^done)(NSError *)) {
              (void)clearToken;
@@ -1028,10 +1039,15 @@ onMembershipMayChange:nil
 
 - (void)_claimCurrentAdminIp {
   [self _beginBusy];
-  [self.client adminIpAdd:nil claimCurrent:YES completion:^(NSDictionary *data, NSError *error) {
+  [self.client adminIpAdd:nil claimCurrent:YES completion:^(AutumnOpsIpUpsertResult *result, NSError *error) {
     [self _endBusy];
-    if (error) [self _toast:error.localizedDescription];
-    else [self _refreshAll];
+    if (error) {
+      [self _toast:error.localizedDescription];
+      return;
+    }
+    NSString *ip = result.row.ip ?: @"";
+    if (ip.length) [self _toast:[NSString stringWithFormat:@"已认领管理 IP：%@", ip]];
+    [self _refreshAll];
   }];
 }
 

@@ -45,7 +45,8 @@ class OpsSectionCard extends StatelessWidget {
   }
 }
 
-/// 列表计数胶囊 + 可选「加载更多」（IP/盾/跳共用；Stadium 真胶囊，禁止被拉成豆荚）。
+/// 列表计数胶囊 + 右侧可选区（默认「加载更多」；可传入 [trailing] 自定义，如 IP 启停过滤）。
+/// Stadium 真胶囊，禁止被拉成豆荚。
 class OpsCountChipBar extends StatelessWidget {
   const OpsCountChipBar({
     super.key,
@@ -54,6 +55,7 @@ class OpsCountChipBar extends StatelessWidget {
     this.hasMore = false,
     this.loadingMore = false,
     this.onLoadMore,
+    this.trailing,
     this.emptyLabel = '暂无记录',
   });
 
@@ -62,6 +64,9 @@ class OpsCountChipBar extends StatelessWidget {
   final bool hasMore;
   final bool loadingMore;
   final VoidCallback? onLoadMore;
+
+  /// 非空时替代「加载更多」，固有宽贴右。
+  final Widget? trailing;
   final String emptyLabel;
 
   @override
@@ -72,6 +77,20 @@ class OpsCountChipBar extends StatelessWidget {
         : loaded >= total
             ? '共 $total 条'
             : '已加载 $loaded / 共 $total';
+    final Widget? right = trailing ??
+        ((hasMore && loaded > 0)
+            ? TextButton(
+                onPressed: loadingMore ? null : onLoadMore,
+                style: TextButton.styleFrom(
+                  visualDensity: VisualDensity.compact,
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                ),
+                child: Text(
+                  loadingMore ? '加载中…' : '加载更多',
+                  style: const TextStyle(fontSize: 12),
+                ),
+              )
+            : null);
     return Row(
       children: [
         // 固有宽胶囊：与文案同宽，半高圆角（StadiumBorder）
@@ -91,18 +110,7 @@ class OpsCountChipBar extends StatelessWidget {
           ),
         ),
         const Spacer(),
-        if (hasMore && loaded > 0)
-          TextButton(
-            onPressed: loadingMore ? null : onLoadMore,
-            style: TextButton.styleFrom(
-              visualDensity: VisualDensity.compact,
-              padding: const EdgeInsets.symmetric(horizontal: 8),
-            ),
-            child: Text(
-              loadingMore ? '加载中…' : '加载更多',
-              style: const TextStyle(fontSize: 12),
-            ),
-          ),
+        if (right != null) right,
       ],
     );
   }

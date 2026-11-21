@@ -48,6 +48,13 @@ NS_ASSUME_NONNULL_BEGIN
 + (instancetype)fromJSON:(NSDictionary *)json;
 @end
 
+/// IP 添加/认领结果：完整行 + 是否原先已存在（幂等）。
+@interface AutumnOpsIpUpsertResult : NSObject
+@property (nonatomic, strong) AutumnOpsIpRow *row;
+@property (nonatomic) BOOL existed;
++ (instancetype)fromJSON:(NSDictionary *)json;
+@end
+
 @interface AutumnOpsIpPage : NSObject
 @property (nonatomic) NSInteger count;
 @property (nonatomic) NSInteger page;

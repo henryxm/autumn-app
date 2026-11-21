@@ -75,6 +75,15 @@ static NSNumber *AOCNum(id v) {
 }
 @end
 
+@implementation AutumnOpsIpUpsertResult
++ (instancetype)fromJSON:(NSDictionary *)json {
+  AutumnOpsIpUpsertResult *o = [AutumnOpsIpUpsertResult new];
+  o.row = [AutumnOpsIpRow fromJSON:json ?: @{}];
+  o.existed = [json[@"existed"] boolValue];
+  return o;
+}
+@end
+
 @implementation AutumnOpsIpPage
 + (instancetype)fromJSON:(NSDictionary *)json {
   AutumnOpsIpPage *o = [AutumnOpsIpPage new];

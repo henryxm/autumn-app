@@ -159,6 +159,24 @@ class OpsIpRow {
   }
 }
 
+/// IP 添加/认领结果：完整行 + 是否原先已存在（幂等）。
+class OpsIpUpsertResult {
+  const OpsIpUpsertResult({
+    required this.row,
+    required this.existed,
+  });
+
+  final OpsIpRow row;
+  final bool existed;
+
+  factory OpsIpUpsertResult.fromJson(Map<String, dynamic> json) {
+    return OpsIpUpsertResult(
+      row: OpsIpRow.fromJson(json),
+      existed: json['existed'] == true,
+    );
+  }
+}
+
 class OpsIpPage {
   const OpsIpPage({
     required this.count,

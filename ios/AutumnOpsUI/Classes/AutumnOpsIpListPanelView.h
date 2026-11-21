@@ -2,6 +2,7 @@
 @class AutumnOpsClient;
 @class AutumnOpsIpPage;
 @class AutumnOpsIpRow;
+@class AutumnOpsIpUpsertResult;
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -10,10 +11,19 @@ typedef NS_ENUM(NSInteger, AutumnOpsIpStatusMode) {
   AutumnOpsIpStatusModeAvailable = 1, // 黑：available 0 生效
 };
 
+/// 启停过滤：服务端 `forbidden`/`available` 等值筛选（对齐 Flutter OpsIpActiveFilter）。
+typedef NS_ENUM(NSInteger, AutumnOpsIpActiveFilter) {
+  AutumnOpsIpActiveFilterAll = 0,
+  AutumnOpsIpActiveFilterActive = 1,
+  AutumnOpsIpActiveFilterInactive = 2,
+};
+
 typedef void (^AutumnOpsIpPanelToast)(NSString *message);
 typedef void (^AutumnOpsIpPanelBusy)(BOOL busy);
-typedef void (^AutumnOpsIpPageLoader)(NSInteger page, NSInteger limit, void (^done)(AutumnOpsIpPage * _Nullable page, NSError * _Nullable error));
-typedef void (^AutumnOpsIpAddBlock)(NSString * _Nullable ip, BOOL claimCurrent, void (^done)(NSString * _Nullable addedIp, NSError * _Nullable error));
+typedef void (^AutumnOpsIpPageLoader)(NSInteger page, NSInteger limit, AutumnOpsIpActiveFilter filter,
+                                     void (^done)(AutumnOpsIpPage * _Nullable page, NSError * _Nullable error));
+typedef void (^AutumnOpsIpAddBlock)(NSString * _Nullable ip, BOOL claimCurrent,
+                                    void (^done)(AutumnOpsIpUpsertResult * _Nullable result, NSError * _Nullable error));
 typedef void (^AutumnOpsIpRemoveBlock)(NSString *ip, NSString * _Nullable clearToken, void (^done)(NSError * _Nullable error));
 typedef void (^AutumnOpsIpToggleBlock)(NSString *ip, BOOL enable, void (^done)(NSError * _Nullable error));
 typedef void (^AutumnOpsIpClearTokenResolver)(NSString *reason, void (^done)(NSString * _Nullable token)); // nil = cancelled

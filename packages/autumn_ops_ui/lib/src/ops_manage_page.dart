@@ -708,7 +708,7 @@ class _OpsManageSitePageState extends State<OpsManageSitePage>
                 : () => _run(() async {
                       final c = await _client();
                       final r = await c!.adminIpAdd(claimCurrent: true);
-                      _toast('已认领管理 IP：${r['ip']}');
+                      _toast('已认领管理 IP：${r.row.ip}');
                       await _refreshRemote();
                     }),
             icon: const Icon(Icons.my_location),
@@ -996,6 +996,30 @@ class _OpsManageSitePageState extends State<OpsManageSitePage>
     );
   }
 
+  /// 管理/白名单 list：`forbidden` 0=启用 1=禁用；全部不传。
+  int? _forbiddenParam(OpsIpActiveFilter filter) {
+    switch (filter) {
+      case OpsIpActiveFilter.all:
+        return null;
+      case OpsIpActiveFilter.active:
+        return 0;
+      case OpsIpActiveFilter.inactive:
+        return 1;
+    }
+  }
+
+  /// 黑名单 list：`available` 0=生效 1=停用；全部不传。
+  int? _availableParam(OpsIpActiveFilter filter) {
+    switch (filter) {
+      case OpsIpActiveFilter.all:
+        return null;
+      case OpsIpActiveFilter.active:
+        return 0;
+      case OpsIpActiveFilter.inactive:
+        return 1;
+    }
+  }
+
   Widget _buildAdminIp() {
     return OpsIpListPanel(
       title: '管理 IP',
@@ -1007,18 +1031,17 @@ class _OpsManageSitePageState extends State<OpsManageSitePage>
       busy: _busy,
       onBusyChanged: _setPanelBusy,
       onToast: _toast,
-      loadPage: ({required int page, required int limit}) async {
+      loadPage: ({required int page, required int limit, required OpsIpActiveFilter filter}) async {
         final c = await _client();
         await c!.ensureSession();
-        return c.adminIpList(page: page, limit: limit);
+        return c.adminIpList(page: page, limit: limit, forbidden: _forbiddenParam(filter));
       },
       onMembershipMayChange: () {
         _refreshRemote();
       },
       onAdd: ({String? ip, bool claimCurrent = false}) async {
         final c = await _client();
-        final r = await c!.adminIpAdd(ip: ip, claimCurrent: claimCurrent);
-        return '${r['ip'] ?? ip ?? ''}';
+        return c!.adminIpAdd(ip: ip, claimCurrent: claimCurrent);
       },
       onRemove: (ip, {String? clearToken}) async {
         final c = await _client();
@@ -1046,15 +1069,14 @@ class _OpsManageSitePageState extends State<OpsManageSitePage>
         _refreshRemote();
       },
       ipInputHint: '请输入白名单 IP',
-      loadPage: ({required int page, required int limit}) async {
+      loadPage: ({required int page, required int limit, required OpsIpActiveFilter filter}) async {
         final c = await _client();
         await c!.ensureSession();
-        return c.ipWhiteList(page: page, limit: limit);
+        return c.ipWhiteList(page: page, limit: limit, forbidden: _forbiddenParam(filter));
       },
       onAdd: ({String? ip, bool claimCurrent = false}) async {
         final c = await _client();
-        final r = await c!.ipWhiteAdd(ip: ip, claimCurrent: claimCurrent);
-        return '${r['ip'] ?? ip ?? ''}';
+        return c!.ipWhiteAdd(ip: ip, claimCurrent: claimCurrent);
       },
       onRemove: (ip, {String? clearToken}) async {
         final c = await _client();
@@ -1105,10 +1127,10 @@ class _OpsManageSitePageState extends State<OpsManageSitePage>
         onToast: _toast,
         client: _client,
       ),
-      loadPage: ({required int page, required int limit}) async {
+      loadPage: ({required int page, required int limit, required OpsIpActiveFilter filter}) async {
         final c = await _client();
         await c!.ensureSession();
-        return c.ipBlackList(page: page, limit: limit);
+        return c.ipBlackList(page: page, limit: limit, available: _availableParam(filter));
       },
       onAdd: ({String? ip, bool claimCurrent = false}) async {
         final c = await _client();
@@ -1117,8 +1139,7 @@ class _OpsManageSitePageState extends State<OpsManageSitePage>
         if (!check.ok) {
           throw StateError(check.error!);
         }
-        final r = await c!.ipBlackAdd(target);
-        return '${r['ip'] ?? target}';
+        return c!.ipBlackAdd(target);
       },
       onRemove: (ip, {String? clearToken}) async {
         final c = await _client();

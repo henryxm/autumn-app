@@ -93,6 +93,7 @@ CocoaPods **不支持** Flutter 式 `git + path` 子目录一条声明。发版�
 - [ ] **运行 Tab（对齐 Flutter OpsRuntimePanel）**：`AutumnOpsRuntimePanelView` 八区卡（系统/JVM/磁盘/库/防火墙/吞吐/Redis/路径）；进度条+Chip；采集时间+刷新按钮+下拉；`ensureSession`→强类型 snapshot；失败 toast+红字；无 pretty-JSON；切 Tab / `_refreshAll` 对称 reload
 - [ ] **六 Tab 共享基建**：`KeyboardDismissHelper`（滚动区点空白收键盘）；`CountChipBar` / `SwitchRow` / `RuleRowChrome`（底外距 8、`highlightedBorder`、meta）/ `StatusPill` 固有宽 hugging / `MetaChip` / `FusedDualFieldAction` 仅 Theme 色
 - [ ] **管理 IP / 白名单 / 黑名单**：第一行 IP 左，右侧成组「本机→胶囊→启停」贴右；第二/三行说明与日期，删除与启停同宽槽右对齐；本机描边；黑名单语义/阈值/认领/clearToken 一致
+- [ ] **IP 启停过滤 + 添加置顶**：计数条右侧文案宽「全部 / 启用中|生效中 / 已禁用|已停用」（无「加载更多」按钮，下拉刷新 + 触底静默分页）；服务端 `forbidden`/`available`；添加或认领后重置「全部」、该 IP 置顶；toast「已添加」vs「已存在，已定位」
 - [ ] **盾牌**：SectionCard 三开关 + Dual fused 添加；RuleRow + CountChip；删除走 `ConfirmPresenter`（Destructive）；limit 50 分页；空/错/键盘
 - [ ] **跳转**：Tonal「添加」；`JumpEditorController` FormSheet（三 Outline 字段 + enable SwitchRow，非 Alert 垫高）；三键规则行；删除 Destructive Confirm；分页/键盘
 - [ ] **证书**：三区 SectionCard（设备 / 签发 / 分享）；设备行与 Flutter 同为 `RuleRowChrome`+吊销；Fused 签发与口令；分享区导出/导入全宽 Outlined（有间距）+ 左对齐红字「清除本机证书」；本机高亮；最后吊销 → Recovery；切 Tab reload / 下拉刷新
@@ -105,7 +106,7 @@ CocoaPods **不支持** Flutter 式 `git + path` 子目录一条声明。发版�
 - [ ] 发现 URL / 深链 / 扫码进 Gate.discover
 - [ ] 管理 IP / clearToken / 删当前 IP 门禁与 Flutter 一致
 - [ ] 运维消息 / 收藏入口已挂到 Gate（不再是宿主侧占位 toast）
-- [ ] `Podfile.lock` 可复现；跟版步骤已写入宿主文档；宿主 `pod update AutumnOpsUI`（≥0.1.14）
+- [ ] `Podfile.lock` 可复现；跟版步骤已写入宿主文档；宿主 `pod update AutumnOpsUI`（≥0.1.16）+ `AutumnOpsCore`（≥0.1.5）
 
 ---
 

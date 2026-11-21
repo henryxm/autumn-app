@@ -138,19 +138,22 @@ class AutumnOpsClient {
     }
   }
 
-  Future<OpsIpPage> adminIpList({int page = 1, int limit = 20}) async {
+  Future<OpsIpPage> adminIpList({int page = 1, int limit = 20, int? forbidden}) async {
     final data = await _authedPost('/ops/api/v1/adminip/list', {
       'page': page,
       'limit': limit,
+      if (forbidden != null) 'forbidden': forbidden,
     });
     return OpsIpPage.fromJson(data);
   }
 
-  Future<Map<String, dynamic>> adminIpAdd({String? ip, bool claimCurrent = false}) =>
-      _authedPost('/ops/api/v1/adminip/add', {
-        if (ip != null) 'ip': ip,
-        'claimCurrent': claimCurrent,
-      });
+  Future<OpsIpUpsertResult> adminIpAdd({String? ip, bool claimCurrent = false}) async {
+    final data = await _authedPost('/ops/api/v1/adminip/add', {
+      if (ip != null) 'ip': ip,
+      'claimCurrent': claimCurrent,
+    });
+    return OpsIpUpsertResult.fromJson(data);
+  }
 
   Future<Map<String, dynamic>> adminIpRemove(String ip, {String? clearToken}) =>
       _authedPost('/ops/api/v1/adminip/remove', {
@@ -277,19 +280,22 @@ class AutumnOpsClient {
   Future<Map<String, dynamic>> jumpDelete(List<int> ids) =>
       _authedPost('/ops/api/v1/jump/delete', {'ids': ids});
 
-  Future<OpsIpPage> ipWhiteList({int page = 1, int limit = 20}) async {
+  Future<OpsIpPage> ipWhiteList({int page = 1, int limit = 20, int? forbidden}) async {
     final data = await _authedPost('/ops/api/v1/ipwhite/list', {
       'page': page,
       'limit': limit,
+      if (forbidden != null) 'forbidden': forbidden,
     });
     return OpsIpPage.fromJson(data);
   }
 
-  Future<Map<String, dynamic>> ipWhiteAdd({String? ip, bool claimCurrent = false}) =>
-      _authedPost('/ops/api/v1/ipwhite/add', {
-        if (ip != null) 'ip': ip,
-        'claimCurrent': claimCurrent,
-      });
+  Future<OpsIpUpsertResult> ipWhiteAdd({String? ip, bool claimCurrent = false}) async {
+    final data = await _authedPost('/ops/api/v1/ipwhite/add', {
+      if (ip != null) 'ip': ip,
+      'claimCurrent': claimCurrent,
+    });
+    return OpsIpUpsertResult.fromJson(data);
+  }
 
   Future<Map<String, dynamic>> ipWhiteRemove(String ip, {String? clearToken}) =>
       _authedPost('/ops/api/v1/ipwhite/remove', {
@@ -303,16 +309,19 @@ class AutumnOpsClient {
         'forbidden': forbidden ? 1 : 0,
       });
 
-  Future<OpsIpPage> ipBlackList({int page = 1, int limit = 20}) async {
+  Future<OpsIpPage> ipBlackList({int page = 1, int limit = 20, int? available}) async {
     final data = await _authedPost('/ops/api/v1/ipblack/list', {
       'page': page,
       'limit': limit,
+      if (available != null) 'available': available,
     });
     return OpsIpPage.fromJson(data);
   }
 
-  Future<Map<String, dynamic>> ipBlackAdd(String ip) =>
-      _authedPost('/ops/api/v1/ipblack/add', {'ip': ip});
+  Future<OpsIpUpsertResult> ipBlackAdd(String ip) async {
+    final data = await _authedPost('/ops/api/v1/ipblack/add', {'ip': ip});
+    return OpsIpUpsertResult.fromJson(data);
+  }
 
   Future<Map<String, dynamic>> ipBlackRemove(String ip) =>
       _authedPost('/ops/api/v1/ipblack/remove', {'ip': ip});

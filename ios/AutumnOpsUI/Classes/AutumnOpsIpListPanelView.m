@@ -14,7 +14,7 @@
 static const NSInteger kIpLimit = 20;
 static const void *kRowIpKey = &kRowIpKey;
 
-@interface AutumnOpsIpListPanelView ()
+@interface AutumnOpsIpListPanelView () <UIScrollViewDelegate>
 @property (nonatomic, copy) NSString *panelTitle;
 @property (nonatomic, copy) NSString *panelDescription;
 @property (nonatomic) AutumnOpsIpStatusMode statusMode;
@@ -35,12 +35,15 @@ static const void *kRowIpKey = &kRowIpKey;
 @property (nonatomic, strong) UIStackView *rootStack;
 @property (nonatomic, strong) AutumnOpsFusedFieldActionView *addFused;
 @property (nonatomic, strong) UIButton *claimBtn;
+@property (nonatomic, strong) UIStackView *filterStack;
+@property (nonatomic, strong) NSArray<UIButton *> *filterButtons;
 @property (nonatomic, strong) AutumnOpsCountChipBarView *countBar;
 @property (nonatomic, strong) UIStackView *rowsStack;
 @property (nonatomic, strong) UILabel *errorLabel;
 
 @property (nonatomic, strong) NSMutableArray<AutumnOpsIpRow *> *rows;
 @property (nonatomic, strong) NSMutableSet<NSString *> *seenIps;
+@property (nonatomic) AutumnOpsIpActiveFilter activeFilter;
 @property (nonatomic) NSInteger page;
 @property (nonatomic) NSInteger totalCount;
 @property (nonatomic) BOOL hasMore;
@@ -85,6 +88,7 @@ static const void *kRowIpKey = &kRowIpKey;
     _setBusyBlock = [setBusy copy];
     _rows = [NSMutableArray array];
     _seenIps = [NSMutableSet set];
+    _activeFilter = AutumnOpsIpActiveFilterAll;
     _currentIp = @"";
     [self _buildWithHeader:header];
   }
@@ -95,6 +99,7 @@ static const void *kRowIpKey = &kRowIpKey;
   self.backgroundColor = UIColor.clearColor;
   _scroll = [UIScrollView new];
   _scroll.alwaysBounceVertical = YES;
+  _scroll.delegate = self;
   UIRefreshControl *rc = [UIRefreshControl new];
   [rc addTarget:self action:@selector(reload) forControlEvents:UIControlEventValueChanged];
   _scroll.refreshControl = rc;
@@ -139,10 +144,13 @@ static const void *kRowIpKey = &kRowIpKey;
                                             action:@selector(_claimTapped)];
   [_rootStack addArrangedSubview:_claimBtn];
 
+  NSString *activeLabel = (self.statusMode == AutumnOpsIpStatusModeAvailable) ? @"生效中" : @"启用中";
+  NSString *inactiveLabel = (self.statusMode == AutumnOpsIpStatusModeAvailable) ? @"已停用" : @"已禁用";
+  _filterStack = [self _makeFilterStackWithLabels:@[ @"全部", activeLabel, inactiveLabel ]];
   _countBar = [AutumnOpsCountChipBarView new];
-  __weak typeof(self) weakSelf = self;
-  _countBar.onLoadMore = ^{ [weakSelf _loadMore]; };
+  _countBar.trailingView = _filterStack;
   [_rootStack addArrangedSubview:_countBar];
+  [self _syncFilterButtons];
 
   _errorLabel = [UILabel new];
   _errorLabel.numberOfLines = 0;
@@ -174,23 +182,33 @@ static const void *kRowIpKey = &kRowIpKey;
 }
 
 - (void)reload {
-  if (self.loading) return;
+  [self _reloadThen:nil];
+}
+
+- (void)_reloadThen:(void (^)(NSError * _Nullable error))then {
+  if (self.loading) {
+    if (then) then([NSError errorWithDomain:@"AutumnOpsIpList" code:-1 userInfo:@{ NSLocalizedDescriptionKey: @"正在加载" }]);
+    return;
+  }
   self.loading = YES;
   self.page = 0;
   self.hasMore = YES;
   self.errorLabel.hidden = YES;
+  [self _setFilterEnabled:NO];
   if (self.setBusyBlock) self.setBusyBlock(YES);
   __weak typeof(self) weakSelf = self;
-  self.loadPage(1, kIpLimit, ^(AutumnOpsIpPage *page, NSError *error) {
+  self.loadPage(1, kIpLimit, self.activeFilter, ^(AutumnOpsIpPage *page, NSError *error) {
     __strong typeof(weakSelf) self = weakSelf;
     if (!self) return;
     self.loading = NO;
+    [self _setFilterEnabled:YES];
     if (self.setBusyBlock) self.setBusyBlock(NO);
     if (self.scroll.refreshControl.refreshing) [self.scroll.refreshControl endRefreshing];
     if (error) {
       self.errorLabel.text = error.localizedDescription;
       self.errorLabel.hidden = NO;
       if (self.toast) self.toast(error.localizedDescription);
+      if (then) then(error);
       return;
     }
     [self.rows removeAllObjects];
@@ -205,22 +223,72 @@ static const void *kRowIpKey = &kRowIpKey;
       }
     }
     [self _rebuildRows];
+    if (then) then(nil);
   });
+}
+
+- (UIStackView *)_makeFilterStackWithLabels:(NSArray<NSString *> *)labels {
+  NSMutableArray<UIButton *> *btns = [NSMutableArray array];
+  for (NSInteger i = 0; i < (NSInteger)labels.count; i++) {
+    UIButton *b = [UIButton buttonWithType:UIButtonTypeSystem];
+    [b setTitle:labels[i] forState:UIControlStateNormal];
+    b.titleLabel.font = [UIFont systemFontOfSize:12];
+    b.contentEdgeInsets = UIEdgeInsetsMake(4, 6, 4, 6);
+    b.tag = i;
+    [b setTitleColor:[AutumnOpsUITheme.onSurface colorWithAlphaComponent:0.38] forState:UIControlStateDisabled];
+    [b addTarget:self action:@selector(_filterTapped:) forControlEvents:UIControlEventTouchUpInside];
+    [b setContentHuggingPriority:UILayoutPriorityRequired forAxis:UILayoutConstraintAxisHorizontal];
+    [b setContentCompressionResistancePriority:UILayoutPriorityRequired forAxis:UILayoutConstraintAxisHorizontal];
+    [btns addObject:b];
+  }
+  self.filterButtons = btns;
+  UIStackView *stack = [[UIStackView alloc] initWithArrangedSubviews:btns];
+  stack.axis = UILayoutConstraintAxisHorizontal;
+  stack.alignment = UIStackViewAlignmentCenter;
+  stack.spacing = 0;
+  [stack setContentHuggingPriority:UILayoutPriorityRequired forAxis:UILayoutConstraintAxisHorizontal];
+  return stack;
+}
+
+- (void)_filterTapped:(UIButton *)sender {
+  AutumnOpsIpActiveFilter next = AutumnOpsIpActiveFilterAll;
+  if (sender.tag == 1) next = AutumnOpsIpActiveFilterActive;
+  else if (sender.tag == 2) next = AutumnOpsIpActiveFilterInactive;
+  if (next == self.activeFilter) return;
+  self.activeFilter = next;
+  [self _syncFilterButtons];
+  [self reload];
+}
+
+- (void)_syncFilterButtons {
+  for (UIButton *b in self.filterButtons) {
+    BOOL selected = NO;
+    if (b.tag == 0) selected = self.activeFilter == AutumnOpsIpActiveFilterAll;
+    else if (b.tag == 1) selected = self.activeFilter == AutumnOpsIpActiveFilterActive;
+    else if (b.tag == 2) selected = self.activeFilter == AutumnOpsIpActiveFilterInactive;
+    b.titleLabel.font = selected ? [UIFont systemFontOfSize:12 weight:UIFontWeightSemibold]
+                                 : [UIFont systemFontOfSize:12 weight:UIFontWeightRegular];
+    [b setTitleColor:selected ? AutumnOpsUITheme.primary : AutumnOpsUITheme.onSurfaceVariant
+            forState:UIControlStateNormal];
+  }
+}
+
+- (void)_setFilterEnabled:(BOOL)enabled {
+  for (UIButton *b in self.filterButtons) b.enabled = enabled;
+  [self _syncFilterButtons];
 }
 
 - (void)_loadMore {
   if (self.loading || self.loadingMore || !self.hasMore) return;
   self.loadingMore = YES;
-  [self _refreshCountBar];
   NSInteger next = self.page + 1;
   __weak typeof(self) weakSelf = self;
-  self.loadPage(next, kIpLimit, ^(AutumnOpsIpPage *page, NSError *error) {
+  self.loadPage(next, kIpLimit, self.activeFilter, ^(AutumnOpsIpPage *page, NSError *error) {
     __strong typeof(weakSelf) self = weakSelf;
     if (!self) return;
     self.loadingMore = NO;
     if (error) {
       if (self.toast) self.toast(error.localizedDescription);
-      [self _refreshCountBar];
       return;
     }
     self.page = page.page > 0 ? page.page : next;
@@ -234,6 +302,51 @@ static const void *kRowIpKey = &kRowIpKey;
     }
     [self _rebuildRows];
   });
+}
+
+- (void)scrollViewDidScroll:(UIScrollView *)scrollView {
+  if (!self.hasMore || self.loading || self.loadingMore) return;
+  CGFloat remain = scrollView.contentSize.height - scrollView.contentOffset.y - scrollView.bounds.size.height;
+  if (remain < 120) [self _loadMore];
+}
+
+/// 添加/认领后：强制「全部」过滤，置顶该 IP。
+- (void)_afterUpsert:(AutumnOpsIpUpsertResult *)result {
+  if (!result.row.ip.length) {
+    [self reload];
+    return;
+  }
+  self.activeFilter = AutumnOpsIpActiveFilterAll;
+  [self _syncFilterButtons];
+  __weak typeof(self) weakSelf = self;
+  [self _reloadThen:^(NSError *error) {
+    __strong typeof(weakSelf) self = weakSelf;
+    if (!self || error) return;
+    NSString *ip = result.row.ip;
+    NSInteger found = NSNotFound;
+    for (NSInteger i = 0; i < (NSInteger)self.rows.count; i++) {
+      if ([self.rows[i].ip isEqualToString:ip]) {
+        found = i;
+        break;
+      }
+    }
+    if (found > 0) {
+      AutumnOpsIpRow *row = self.rows[found];
+      [self.rows removeObjectAtIndex:(NSUInteger)found];
+      [self.rows insertObject:row atIndex:0];
+      [self _rebuildRows];
+    } else if (found == NSNotFound) {
+      [self.rows insertObject:result.row atIndex:0];
+      [self.seenIps addObject:ip];
+      self.totalCount = self.totalCount + 1;
+      [self _rebuildRows];
+    }
+    if (self.toast) {
+      self.toast(result.existed
+                     ? [NSString stringWithFormat:@"已存在，已定位：%@", ip]
+                     : [NSString stringWithFormat:@"已添加：%@", ip]);
+    }
+  }];
 }
 
 - (BOOL)_rowActive:(AutumnOpsIpRow *)r {
@@ -326,10 +439,11 @@ static const void *kRowIpKey = &kRowIpKey;
 }
 
 - (void)_refreshCountBar {
+  // IP 面板右侧为过滤文案，不再展示「加载更多」；触底静默分页。
   [self.countBar configureLoaded:self.rows.count
                            total:self.totalCount
-                         hasMore:self.hasMore
-                     loadingMore:self.loadingMore
+                         hasMore:NO
+                     loadingMore:NO
                       emptyLabel:@"暂无记录"];
 }
 
@@ -354,7 +468,7 @@ static const void *kRowIpKey = &kRowIpKey;
 - (void)_runAddIp:(NSString *)ip claim:(BOOL)claim {
   if (self.setBusyBlock) self.setBusyBlock(YES);
   __weak typeof(self) weakSelf = self;
-  self.onAdd(ip, claim, ^(NSString *added, NSError *error) {
+  self.onAdd(ip, claim, ^(AutumnOpsIpUpsertResult *result, NSError *error) {
     __strong typeof(weakSelf) self = weakSelf;
     if (!self) return;
     if (self.setBusyBlock) self.setBusyBlock(NO);
@@ -364,7 +478,7 @@ static const void *kRowIpKey = &kRowIpKey;
     }
     self.addFused.textField.text = @"";
     if (self.onMembershipMayChange) self.onMembershipMayChange();
-    [self reload];
+    [self _afterUpsert:result];
   });
 }
 

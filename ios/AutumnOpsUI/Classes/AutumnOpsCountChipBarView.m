@@ -2,10 +2,13 @@
 #import "AutumnOpsUITheme.h"
 
 @interface AutumnOpsCountChipBarView ()
+@property (nonatomic, strong) UIStackView *row;
 @property (nonatomic, strong) UIView *chipWrap;
 @property (nonatomic, strong) UILabel *chipLabel;
 @property (nonatomic, strong) UIButton *moreBtn;
 @property (nonatomic, strong) UIView *spacer;
+@property (nonatomic, strong, nullable) UIView *installedTrailing;
+@property (nonatomic) BOOL showMore;
 @end
 
 @implementation AutumnOpsCountChipBarView
@@ -52,20 +55,37 @@
     [_spacer setContentCompressionResistancePriority:UILayoutPriorityDefaultLow
                                              forAxis:UILayoutConstraintAxisHorizontal];
 
-    UIStackView *row = [[UIStackView alloc] initWithArrangedSubviews:@[ _chipWrap, _spacer, _moreBtn ]];
-    row.axis = UILayoutConstraintAxisHorizontal;
-    row.alignment = UIStackViewAlignmentCenter;
-    row.distribution = UIStackViewDistributionFill;
-    [self addSubview:row];
-    row.translatesAutoresizingMaskIntoConstraints = NO;
+    _row = [[UIStackView alloc] initWithArrangedSubviews:@[ _chipWrap, _spacer, _moreBtn ]];
+    _row.axis = UILayoutConstraintAxisHorizontal;
+    _row.alignment = UIStackViewAlignmentCenter;
+    _row.distribution = UIStackViewDistributionFill;
+    [self addSubview:_row];
+    _row.translatesAutoresizingMaskIntoConstraints = NO;
     [NSLayoutConstraint activateConstraints:@[
-      [row.topAnchor constraintEqualToAnchor:self.topAnchor constant:4],
-      [row.leadingAnchor constraintEqualToAnchor:self.leadingAnchor],
-      [row.trailingAnchor constraintEqualToAnchor:self.trailingAnchor],
-      [row.bottomAnchor constraintEqualToAnchor:self.bottomAnchor constant:-4],
+      [_row.topAnchor constraintEqualToAnchor:self.topAnchor constant:4],
+      [_row.leadingAnchor constraintEqualToAnchor:self.leadingAnchor],
+      [_row.trailingAnchor constraintEqualToAnchor:self.trailingAnchor],
+      [_row.bottomAnchor constraintEqualToAnchor:self.bottomAnchor constant:-4],
     ]];
   }
   return self;
+}
+
+- (void)setTrailingView:(UIView *)trailingView {
+  if (_installedTrailing) {
+    [_row removeArrangedSubview:_installedTrailing];
+    [_installedTrailing removeFromSuperview];
+    _installedTrailing = nil;
+  }
+  _trailingView = trailingView;
+  if (trailingView) {
+    [trailingView setContentHuggingPriority:UILayoutPriorityRequired forAxis:UILayoutConstraintAxisHorizontal];
+    [trailingView setContentCompressionResistancePriority:UILayoutPriorityRequired
+                                                  forAxis:UILayoutConstraintAxisHorizontal];
+    [_row addArrangedSubview:trailingView];
+    _installedTrailing = trailingView;
+  }
+  [self _syncRightVisibility];
 }
 
 - (void)layoutSubviews {
@@ -79,7 +99,6 @@
   if (s.width < 1 && self.chipLabel.text.length) {
     s = [self.chipLabel.text sizeWithAttributes:@{ NSFontAttributeName : self.chipLabel.font }];
   }
-  // 仅 chip 固有高；宽由父级决定，chip 自身 hugging 不拉满
   return CGSizeMake(UIViewNoIntrinsicMetric, ceil(MAX(s.height, 12)) + 4 + 4 + 8);
 }
 
@@ -93,11 +112,21 @@
   else if (loaded >= total) text = [NSString stringWithFormat:@"共 %ld 条", (long)total];
   else text = [NSString stringWithFormat:@"已加载 %ld / 共 %ld", (long)loaded, (long)total];
   self.chipLabel.text = text;
-  self.moreBtn.hidden = !(hasMore && loaded > 0);
+  self.showMore = hasMore && loaded > 0;
   self.moreBtn.enabled = !loadingMore;
   [self.moreBtn setTitle:loadingMore ? @"加载中…" : @"加载更多" forState:UIControlStateNormal];
+  [self _syncRightVisibility];
   [self.chipWrap invalidateIntrinsicContentSize];
   [self setNeedsLayout];
+}
+
+- (void)_syncRightVisibility {
+  if (self.trailingView) {
+    self.moreBtn.hidden = YES;
+    self.trailingView.hidden = NO;
+  } else {
+    self.moreBtn.hidden = !self.showMore;
+  }
 }
 
 - (void)_more {

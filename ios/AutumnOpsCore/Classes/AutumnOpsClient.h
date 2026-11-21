@@ -12,6 +12,7 @@ typedef void (^AutumnOpsProbeOutcomeBlock)(AutumnOpsProbeOutcome *outcome);
 typedef void (^AutumnOpsEnrollBlock)(AutumnOpsEnrollResult * _Nullable result, NSError * _Nullable error);
 typedef void (^AutumnOpsVoidBlock)(NSError * _Nullable error);
 typedef void (^AutumnOpsIpPageBlock)(AutumnOpsIpPage * _Nullable page, NSError * _Nullable error);
+typedef void (^AutumnOpsIpUpsertBlock)(AutumnOpsIpUpsertResult * _Nullable result, NSError * _Nullable error);
 typedef void (^AutumnOpsClaimBlock)(AutumnOpsClaimIssueResult * _Nullable result, NSError * _Nullable error);
 typedef void (^AutumnOpsRevokeBlock)(AutumnOpsRevokeResult * _Nullable result, NSError * _Nullable error);
 typedef void (^AutumnOpsStringBlock)(NSString * _Nullable value, NSError * _Nullable error);
@@ -31,19 +32,21 @@ typedef void (^AutumnOpsRuntimeSnapshotBlock)(AutumnOpsRuntimeSnapshot * _Nullab
 - (void)claimWithSecret:(NSString *)claimSecret completion:(AutumnOpsEnrollBlock)completion;
 - (void)ensureSession:(AutumnOpsVoidBlock)completion;
 
-- (void)adminIpListPage:(NSInteger)page limit:(NSInteger)limit completion:(AutumnOpsIpPageBlock)completion;
-- (void)adminIpAdd:(nullable NSString *)ip claimCurrent:(BOOL)claimCurrent completion:(AutumnOpsDictBlock)completion;
+/// [forbidden]：管理/白名单等值过滤，`0` 启用 / `1` 禁用；`nil` 表示全部。
+- (void)adminIpListPage:(NSInteger)page limit:(NSInteger)limit forbidden:(nullable NSNumber *)forbidden completion:(AutumnOpsIpPageBlock)completion;
+- (void)adminIpAdd:(nullable NSString *)ip claimCurrent:(BOOL)claimCurrent completion:(AutumnOpsIpUpsertBlock)completion;
 - (void)adminIpRemove:(NSString *)ip clearToken:(nullable NSString *)clearToken completion:(AutumnOpsDictBlock)completion;
 - (void)adminIpSetForbidden:(NSString *)ip forbidden:(BOOL)forbidden completion:(AutumnOpsDictBlock)completion;
 - (void)currentIp:(AutumnOpsDictBlock)completion;
 
-- (void)ipWhiteListPage:(NSInteger)page limit:(NSInteger)limit completion:(AutumnOpsIpPageBlock)completion;
-- (void)ipWhiteAdd:(nullable NSString *)ip claimCurrent:(BOOL)claimCurrent completion:(AutumnOpsDictBlock)completion;
+- (void)ipWhiteListPage:(NSInteger)page limit:(NSInteger)limit forbidden:(nullable NSNumber *)forbidden completion:(AutumnOpsIpPageBlock)completion;
+- (void)ipWhiteAdd:(nullable NSString *)ip claimCurrent:(BOOL)claimCurrent completion:(AutumnOpsIpUpsertBlock)completion;
 - (void)ipWhiteRemove:(NSString *)ip clearToken:(nullable NSString *)clearToken completion:(AutumnOpsDictBlock)completion;
 - (void)ipWhiteSetForbidden:(NSString *)ip forbidden:(BOOL)forbidden completion:(AutumnOpsDictBlock)completion;
 
-- (void)ipBlackListPage:(NSInteger)page limit:(NSInteger)limit completion:(AutumnOpsIpPageBlock)completion;
-- (void)ipBlackAdd:(NSString *)ip completion:(AutumnOpsDictBlock)completion;
+/// [available]：黑名单等值过滤，`0` 生效 / `1` 停用；`nil` 表示全部。
+- (void)ipBlackListPage:(NSInteger)page limit:(NSInteger)limit available:(nullable NSNumber *)available completion:(AutumnOpsIpPageBlock)completion;
+- (void)ipBlackAdd:(NSString *)ip completion:(AutumnOpsIpUpsertBlock)completion;
 - (void)ipBlackRemove:(NSString *)ip completion:(AutumnOpsDictBlock)completion;
 - (void)ipBlackSetAvailable:(NSString *)ip available:(NSInteger)available completion:(AutumnOpsDictBlock)completion;
 - (void)ipBlackFirewallCount:(AutumnOpsIntBlock)completion;

@@ -1007,7 +1007,7 @@ onMembershipMayChange:nil
 - (void)_discoverActionTapped {
   BOOL discoverOn = self.discoverEnabled == nil || self.discoverEnabled.boolValue;
   if (discoverOn) {
-    [self _confirm:@"关闭公开发现页" body:@"关闭后浏览器访问 /ops/discover 将 404；App 探测仍可用。确认关闭？" ok:^{
+    [self _confirm:@"关闭公开发现页" body:@"关闭后浏览器访问 /autumn/ops/discover 将 404；App 探测仍可用。确认关闭？" ok:^{
       [self _applyDiscover:NO];
     }];
     return;

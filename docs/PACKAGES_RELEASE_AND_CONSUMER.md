@@ -36,7 +36,7 @@
 公开入口（宿主只挂这些）：
 
 - `AutumnOpsHome` — 多站点首页（独立 shell 与多数宿主）
-- `AutumnOpsGatePage` — 深链：IM `AutumnOps` content / `{base}/ops/discover` / 宿主自定义 URL scheme
+- `AutumnOpsGatePage` — 深链：IM `AutumnOps` content / `{base}/autumn/ops/discover` / 宿主自定义 URL scheme
 - `AutumnOpsDiscover` — 解析/生成发现 URL（逻辑在 `autumn_ops`）
 - `OpsKeyboardDismiss` — 可选，供宿主 `MaterialApp.builder`
 

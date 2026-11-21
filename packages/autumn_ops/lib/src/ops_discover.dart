@@ -2,12 +2,11 @@ import 'ops_site_store.dart';
 
 /// Discover / share URL helpers for Autumn ops (T0; no secrets).
 ///
-/// Canonical form: `{baseUrl}/ops/discover`
+/// Canonical form: `{baseUrl}/autumn/ops/discover`
 abstract final class AutumnOpsDiscover {
   AutumnOpsDiscover._();
 
-  static const discoverPath = '/ops/discover';
-  static const queryFlag = 'autumn_ops';
+  static const discoverPath = '/autumn/ops/discover';
 
   /// Build shareable discover URL from a site base.
   static String shareUrlForBase(String baseUrl) {
@@ -18,16 +17,15 @@ abstract final class AutumnOpsDiscover {
     return '$b$discoverPath';
   }
 
-  /// Parse host deep link / https discover URL / flagged URL into baseUrl.
+  /// Parse host deep link / https discover URL into baseUrl.
   ///
   /// Returns null when [raw] is not an ops discover intent.
   /// Accepts:
-  /// - `https://host/ops/discover` (optional query/fragment)
-  /// - `https://host/?autumn_ops=1` or `#autumn_ops`
+  /// - `https://host/autumn/ops/discover` (optional query/fragment)
   /// - 宿主自定义 scheme：`{scheme}://…/autumnops?base=`（任意非 http(s) scheme）
   ///
   /// Bare `http(s)://host` alone is **not** discover (avoid hijacking normal links).
-  /// Callers that already know intent may set [forceHttpBase].
+  /// Callers that already know intent (e.g. Add Site paste) may set [forceHttpBase].
   static String? tryParseBaseUrl(String raw, {bool forceHttpBase = false}) {
     final s = raw.trim();
     if (s.isEmpty) {
@@ -65,16 +63,6 @@ abstract final class AutumnOpsDiscover {
       final idx = pathNorm.lastIndexOf(discoverPath);
       final prefix = pathNorm.substring(0, idx);
       return OpsSiteEntry.normalizeBaseUrl('$origin$prefix');
-    }
-
-    final q = uri.queryParameters[queryFlag];
-    final frag = uri.fragment;
-    final flagged = q == '1' ||
-        q == 'true' ||
-        frag == queryFlag ||
-        frag.startsWith('$queryFlag=');
-    if (flagged) {
-      return OpsSiteEntry.normalizeBaseUrl(_originWithPath(uri));
     }
 
     if (forceHttpBase) {

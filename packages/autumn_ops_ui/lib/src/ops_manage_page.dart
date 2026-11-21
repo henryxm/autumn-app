@@ -38,7 +38,7 @@ class _OpsManageSitePageState extends State<OpsManageSitePage>
   int _busyDepth = 0;
   bool _panelBusy = false;
   bool? _adminIpEnable;
-  /// 公开发现页 `/ops/discover`；旧服务端缺字段时按开启处理。
+  /// 公开发现页 `/autumn/ops/discover`；旧服务端缺字段时按开启处理。
   bool? _discoverEnabled;
   /// `null` 未同步；服务端 SECURITY_OPS_CONFIG.clearToken 是否已配置（不下发明文）。
   bool? _clearTokenConfigured;

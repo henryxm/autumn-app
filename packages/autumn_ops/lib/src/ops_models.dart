@@ -15,7 +15,7 @@ class OpsProbeResult {
   final String opsCert;
   final bool adminIpEnable;
   final bool enrollAvailable;
-  /// 公开发现页 `/ops/discover`；旧服务端缺字段时视为开启。
+  /// 公开发现页 `/autumn/ops/discover`；旧服务端缺字段时视为开启。
   final bool discoverEnabled;
   final String? siteId;
   final String? serverFingerprint;

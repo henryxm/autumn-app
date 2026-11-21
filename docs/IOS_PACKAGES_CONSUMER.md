@@ -64,7 +64,7 @@ CocoaPods **不支持** Flutter 式 `git + path` 子目录一条声明。发版�
 |------|------|
 | 启动时配置 | `AutumnOpsUIConfig.deviceLabel`（如 `ios-<your-app>`）+ `AutumnOpsShareHooks.toChat` |
 | 打开载荷 | 气泡 / 收藏点开 → Gate（`open…Content:` / 原始 JSON） |
-| 发现 URL | `{base}/ops/discover`；以及宿主注册的自定义 URL scheme（`AutumnOpsDiscover` 会识别常见 `…://…/autumnops?base=` 形态） |
+| 发现 URL | `{base}/autumn/ops/discover`；以及宿主注册的自定义 URL scheme（`AutumnOpsDiscover` 会识别常见 `…://…/autumnops?base=` 形态） |
 
 `toChat`：由宿主实现选人 → 发送类型为 `AutumnOps`（或你与服务端约定的等价类型）的消息。
 
@@ -103,10 +103,11 @@ CocoaPods **不支持** Flutter 式 `git + path` 子目录一条声明。发版�
 - [ ] 认领码：A issue → B claim → 两证可独立吊销
 - [ ] 分享口令 → 分享到聊天 → 对端气泡进 Gate → importWrapped
 - [ ] **Flutter 签发分享证 → 本 iOS 宿主 Gate 导入 + ensureSession 成功**（不得 `SecKeyCreateWithData failed`）
-- [ ] 发现 URL / 深链 / 扫码进 Gate.discover
+- [ ] 发现 URL：仅 `{base}/autumn/ops/discover` 或 `vc/autumnops?base=` 才异步探测；探测失败走原 WebView/系统打开；成功有证直进 Manage
+- [ ] 普通 https / 旧 `/ops/discover` **不**进运维 Gate
 - [ ] 管理 IP / clearToken / 删当前 IP 门禁与 Flutter 一致
 - [ ] 运维消息 / 收藏入口已挂到 Gate（不再是宿主侧占位 toast）
-- [ ] `Podfile.lock` 可复现；跟版步骤已写入宿主文档；宿主 `pod update AutumnOpsUI`（≥0.1.16）+ `AutumnOpsCore`（≥0.1.5）
+- [ ] `Podfile.lock` 可复现；跟版步骤已写入宿主文档；宿主 `pod update AutumnOpsUI`（≥0.1.17）+ `AutumnOpsCore`（≥0.1.6）
 
 ---
 

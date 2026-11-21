@@ -301,7 +301,8 @@
 }
 
 - (void)_startDiscover:(NSString *)raw {
-  NSString *base = [AutumnOpsDiscover tryParseBaseUrl:raw] ?: [AutumnOpsDiscover tryParseBaseUrl:raw forceHttpBase:YES];
+  // Entry 已严格解析并 probe 成功后才 push；此处禁止 forceHttpBase。
+  NSString *base = [AutumnOpsDiscover tryParseBaseUrl:raw];
   if (!base.length) {
     [self.spinner stopAnimating];
     [self _setStatus:@"无法识别运维发现地址"];

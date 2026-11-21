@@ -7,11 +7,14 @@ NS_ASSUME_NONNULL_BEGIN
 @interface AutumnOpsEntry : NSObject
 
 + (void)openContent:(NSDictionary *)content
-onNavigationController:(UINavigationController *)nav;
+    onNavigationController:(UINavigationController *)nav;
 
-/// 无法识别发现 URL 时返回 NO。
-+ (BOOL)openDiscoverURL:(NSString *)raw
-onNavigationController:(UINavigationController *)nav;
+/// 发现 URL / 深链：仅 `/autumn/ops/discover` 或 `…/autumnops?base=` 才异步探测。
+/// 探测失败 / 非发现形态 → `handled=NO`（宿主走原 URL 流）；
+/// 探测成功有证 → Manage；成功无证 → Gate；`handled=YES`。
++ (void)openDiscoverURL:(NSString *)raw
+ onNavigationController:(UINavigationController *)nav
+             completion:(void (^)(BOOL handled))completion;
 
 @end
 

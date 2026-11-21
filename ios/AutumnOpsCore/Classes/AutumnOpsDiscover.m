@@ -3,7 +3,7 @@
 
 @implementation AutumnOpsDiscover
 
-+ (NSString *)discoverPath { return @"/ops/discover"; }
++ (NSString *)discoverPath { return @"/autumn/ops/discover"; }
 
 + (NSString *)shareUrlForBase:(NSString *)baseUrl {
   NSString *b = [AutumnOpsSiteEntry normalizeBaseUrl:baseUrl];
@@ -62,14 +62,7 @@
     NSString *prefix = [pathNorm substringToIndex:idx.location];
     return [AutumnOpsSiteEntry normalizeBaseUrl:[origin stringByAppendingString:prefix]];
   }
-  NSURLComponents *comp = [NSURLComponents componentsWithURL:uri resolvingAgainstBaseURL:NO];
-  NSString *q = nil;
-  for (NSURLQueryItem *item in comp.queryItems) {
-    if ([item.name isEqualToString:@"autumn_ops"]) { q = item.value; break; }
-  }
-  NSString *frag = uri.fragment ?: @"";
-  BOOL flagged = [q isEqualToString:@"1"] || [q isEqualToString:@"true"] || [frag isEqualToString:@"autumn_ops"] || [frag hasPrefix:@"autumn_ops="];
-  if (flagged || forceHttpBase) {
+  if (forceHttpBase) {
     NSString *origin = [self _originOf:uri] ?: @"";
     NSString *path = uri.path ?: @"";
     if ([path hasSuffix:@"/"] && path.length > 1) path = [path substringToIndex:path.length - 1];

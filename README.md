@@ -7,7 +7,7 @@
 
 - **单独使用**：编译运行 `shell/`，得到运维 App（包名 `cn.org.autumn.ops`），完成站点探测、证书入驻与日常运维。
 - **嵌进自己的应用**：用 git / CocoaPods 引入 `packages/*` 或 `ios/*`，挂上公开入口即可。
-- **先体验完整流程**：安装 **超然信**（已内置本运维能力）。官网 https://chaoran.xin/ ；应用市场搜索「超然信」；或打开站点 `{baseUrl}/ops/discover`（发现页开启时会引导下载并添加该站）。
+- **先体验完整流程**：安装 **超然信**（已内置本运维能力）。官网 https://chaoran.xin/ ；应用市场搜索「超然信」；或打开站点 `{baseUrl}/autumn/ops/discover`（发现页开启时会引导下载并添加该站）。
 
 ## 目录
 
@@ -132,7 +132,7 @@ autumn_ops_ui:
 1. 依赖 `autumn_ops_ui`（会拉上 `autumn_ops`）。  
 2. 路由中挂载 `AutumnOpsHome` / `AutumnOpsGatePage`（或等价包装）。  
 3. 可选：实现分享钩子，将 `AutumnOps` 载荷发到你的 IM / 选人流程。  
-4. 发现页：打开 `{site}/ops/discover` 或宿主自定义 scheme（解析逻辑见 `AutumnOpsDiscover`）。  
+4. 发现页：打开 `{site}/autumn/ops/discover` 或宿主自定义 scheme（解析逻辑见 `AutumnOpsDiscover`）。  
 5. 发版跟版、SemVer、联调 overrides：见 [docs/PACKAGES_RELEASE_AND_CONSUMER.md](docs/PACKAGES_RELEASE_AND_CONSUMER.md)。  
 6. iOS 原生：见 [docs/IOS_PACKAGES_CONSUMER.md](docs/IOS_PACKAGES_CONSUMER.md)。
 

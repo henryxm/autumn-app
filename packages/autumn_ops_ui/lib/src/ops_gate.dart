@@ -228,8 +228,8 @@ class _AutumnOpsGatePageState extends State<AutumnOpsGatePage> {
   }
 
   Future<void> _startDiscover(String rawUrl) async {
-    final base = AutumnOpsDiscover.tryParseBaseUrl(rawUrl) ??
-        AutumnOpsDiscover.tryParseBaseUrl(rawUrl, forceHttpBase: true);
+    // Entry 已严格解析并 probe 成功后才 push；此处禁止 forceHttpBase。
+    final base = AutumnOpsDiscover.tryParseBaseUrl(rawUrl);
     if (base == null || base.isEmpty) {
       setState(() => _status = '无法识别运维发现地址');
       return;

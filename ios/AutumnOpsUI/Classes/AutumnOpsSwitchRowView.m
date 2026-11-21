@@ -3,6 +3,8 @@
 
 @interface AutumnOpsSwitchRowView ()
 @property (nonatomic, strong, readwrite) UISwitch *switchControl;
+@property (nonatomic, strong) UILabel *titleLabel;
+@property (nonatomic, strong) UILabel *subtitleLabel;
 @end
 
 @implementation AutumnOpsSwitchRowView
@@ -10,21 +12,18 @@
 - (instancetype)initWithTitle:(NSString *)title subtitle:(NSString *)subtitle {
   self = [super initWithFrame:CGRectZero];
   if (self) {
-    UILabel *t = [UILabel new];
-    t.text = title;
-    t.font = [UIFont systemFontOfSize:15 weight:UIFontWeightSemibold];
-    t.textColor = AutumnOpsUITheme.onSurface;
-    UILabel *s = [UILabel new];
-    s.text = subtitle;
-    s.font = [UIFont systemFontOfSize:12];
-    s.textColor = AutumnOpsUITheme.onSurfaceVariant;
-    s.numberOfLines = 0;
-    UIStackView *left = [[UIStackView alloc] initWithArrangedSubviews:@[t, s]];
+    _titleLabel = [UILabel new];
+    _titleLabel.text = title;
+    _titleLabel.font = [UIFont systemFontOfSize:15 weight:UIFontWeightSemibold];
+    _subtitleLabel = [UILabel new];
+    _subtitleLabel.text = subtitle;
+    _subtitleLabel.font = [UIFont systemFontOfSize:12];
+    _subtitleLabel.numberOfLines = 0;
+    UIStackView *left = [[UIStackView alloc] initWithArrangedSubviews:@[ _titleLabel, _subtitleLabel ]];
     left.axis = UILayoutConstraintAxisVertical;
     left.spacing = 2;
     _switchControl = [UISwitch new];
-    _switchControl.onTintColor = AutumnOpsUITheme.primary;
-    UIStackView *row = [[UIStackView alloc] initWithArrangedSubviews:@[left, _switchControl]];
+    UIStackView *row = [[UIStackView alloc] initWithArrangedSubviews:@[ left, _switchControl ]];
     row.axis = UILayoutConstraintAxisHorizontal;
     row.alignment = UIStackViewAlignmentCenter;
     row.spacing = 8;
@@ -37,8 +36,23 @@
       [row.trailingAnchor constraintEqualToAnchor:self.trailingAnchor],
       [row.bottomAnchor constraintEqualToAnchor:self.bottomAnchor constant:-4],
     ]];
+    [self _applyThemeColors];
   }
   return self;
+}
+
+- (void)traitCollectionDidChange:(UITraitCollection *)previousTraitCollection {
+  [super traitCollectionDidChange:previousTraitCollection];
+  if (@available(iOS 13.0, *)) {
+    if (![self.traitCollection hasDifferentColorAppearanceComparedToTraitCollection:previousTraitCollection]) return;
+  }
+  [self _applyThemeColors];
+}
+
+- (void)_applyThemeColors {
+  self.titleLabel.textColor = AutumnOpsUITheme.onSurface;
+  self.subtitleLabel.textColor = AutumnOpsUITheme.onSurfaceVariant;
+  self.switchControl.onTintColor = AutumnOpsUITheme.primary;
 }
 
 @end

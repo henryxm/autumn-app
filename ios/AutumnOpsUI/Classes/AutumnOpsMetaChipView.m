@@ -13,10 +13,8 @@
     // Flutter OpsMetaChip：pad H7/V2、radius 6、primaryContainer@0.4、primary 字
     self.layer.cornerRadius = 6;
     self.clipsToBounds = YES;
-    self.backgroundColor = [AutumnOpsUITheme.primaryContainer colorWithAlphaComponent:0.4];
     _label = [UILabel new];
     _label.font = [UIFont systemFontOfSize:11 weight:UIFontWeightSemibold];
-    _label.textColor = AutumnOpsUITheme.primary;
     _label.numberOfLines = 1;
     [self addSubview:_label];
     _label.translatesAutoresizingMaskIntoConstraints = NO;
@@ -29,9 +27,23 @@
     [self setContentHuggingPriority:UILayoutPriorityRequired forAxis:UILayoutConstraintAxisHorizontal];
     [self setContentHuggingPriority:UILayoutPriorityRequired forAxis:UILayoutConstraintAxisVertical];
     [self setContentCompressionResistancePriority:UILayoutPriorityRequired forAxis:UILayoutConstraintAxisHorizontal];
+    [self _applyThemeColors];
     [self setText:text];
   }
   return self;
+}
+
+- (void)traitCollectionDidChange:(UITraitCollection *)previousTraitCollection {
+  [super traitCollectionDidChange:previousTraitCollection];
+  if (@available(iOS 13.0, *)) {
+    if (![self.traitCollection hasDifferentColorAppearanceComparedToTraitCollection:previousTraitCollection]) return;
+  }
+  [self _applyThemeColors];
+}
+
+- (void)_applyThemeColors {
+  self.backgroundColor = [AutumnOpsUITheme.primaryContainer colorWithAlphaComponent:0.4];
+  self.label.textColor = AutumnOpsUITheme.primary;
 }
 
 - (CGSize)intrinsicContentSize {

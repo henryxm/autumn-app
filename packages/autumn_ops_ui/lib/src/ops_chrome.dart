@@ -288,6 +288,7 @@ class OpsRuleRowChrome extends StatelessWidget {
         const SizedBox(height: 4),
         Row(
           children: [
+            const Spacer(),
             for (var i = 0; i < actions.length; i++) ...[
               if (i > 0) const SizedBox(width: 4),
               actions[i],

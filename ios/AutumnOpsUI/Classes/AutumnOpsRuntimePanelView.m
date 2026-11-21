@@ -51,9 +51,10 @@
     make.edges.equalTo(self);
   }];
 
+  // 对齐 Flutter ListView：padding 16、底 24；根间距 0（卡间距在 cardsStack）
   _rootStack = [UIStackView new];
   _rootStack.axis = UILayoutConstraintAxisVertical;
-  _rootStack.spacing = 12;
+  _rootStack.spacing = 0;
   _rootStack.alignment = UIStackViewAlignmentFill;
   [_scroll addSubview:_rootStack];
   [_rootStack mas_makeConstraints:^(MASConstraintMaker *make) {
@@ -63,20 +64,22 @@
 
   _collectedLabel = [UILabel new];
   _collectedLabel.font = [UIFont systemFontOfSize:12];
-  _collectedLabel.textColor = AutumnOpsUITheme.onSurfaceVariant;
   _collectedLabel.numberOfLines = 2;
   _collectedLabel.text = @"下拉刷新获取运行快照";
 
+  // 对齐 Flutter IconButton：仅小图标 16、热区 28、与卡同缘右对齐
+  static const CGFloat kRefreshHit = 28;
   _refreshBtn = [UIButton buttonWithType:UIButtonTypeSystem];
-  [_refreshBtn setTitle:@"刷新" forState:UIControlStateNormal];
-  _refreshBtn.titleLabel.font = [UIFont systemFontOfSize:15 weight:UIFontWeightSemibold];
-  [_refreshBtn setTitleColor:AutumnOpsUITheme.primary forState:UIControlStateNormal];
-  [_refreshBtn setTitleColor:[AutumnOpsUITheme.onSurface colorWithAlphaComponent:0.38] forState:UIControlStateDisabled];
   UIImageSymbolConfiguration *cfg =
-      [UIImageSymbolConfiguration configurationWithPointSize:16 weight:UIImageSymbolWeightMedium];
-  [_refreshBtn setImage:[UIImage systemImageNamed:@"arrow.clockwise" withConfiguration:cfg] forState:UIControlStateNormal];
-  _refreshBtn.tintColor = AutumnOpsUITheme.primary;
-  _refreshBtn.contentEdgeInsets = UIEdgeInsetsMake(4, 8, 4, 8);
+      [UIImageSymbolConfiguration configurationWithPointSize:16
+                                                      weight:UIImageSymbolWeightRegular
+                                                       scale:UIImageSymbolScaleSmall];
+  [_refreshBtn setImage:[UIImage systemImageNamed:@"arrow.clockwise" withConfiguration:cfg]
+               forState:UIControlStateNormal];
+  _refreshBtn.contentEdgeInsets = UIEdgeInsetsZero;
+  _refreshBtn.accessibilityLabel = @"刷新";
+  [_refreshBtn.widthAnchor constraintEqualToConstant:kRefreshHit].active = YES;
+  [_refreshBtn.heightAnchor constraintEqualToConstant:kRefreshHit].active = YES;
   [_refreshBtn addTarget:self action:@selector(reload) forControlEvents:UIControlEventTouchUpInside];
 
   _refreshSpinner = [[UIActivityIndicatorView alloc] initWithActivityIndicatorStyle:UIActivityIndicatorViewStyleMedium];
@@ -84,22 +87,36 @@
   [_refreshSpinner.widthAnchor constraintEqualToConstant:14].active = YES;
   [_refreshSpinner.heightAnchor constraintEqualToConstant:14].active = YES;
 
-  UIStackView *refreshWrap = [[UIStackView alloc] initWithArrangedSubviews:@[_refreshSpinner, _refreshBtn]];
-  refreshWrap.axis = UILayoutConstraintAxisHorizontal;
-  refreshWrap.spacing = 6;
-  refreshWrap.alignment = UIStackViewAlignmentCenter;
+  UIView *refreshHost = [UIView new];
+  [refreshHost addSubview:_refreshBtn];
+  [refreshHost addSubview:_refreshSpinner];
+  _refreshBtn.translatesAutoresizingMaskIntoConstraints = NO;
+  _refreshSpinner.translatesAutoresizingMaskIntoConstraints = NO;
+  [NSLayoutConstraint activateConstraints:@[
+    [refreshHost.widthAnchor constraintEqualToConstant:kRefreshHit],
+    [refreshHost.heightAnchor constraintEqualToConstant:kRefreshHit],
+    [_refreshBtn.centerXAnchor constraintEqualToAnchor:refreshHost.centerXAnchor],
+    [_refreshBtn.centerYAnchor constraintEqualToAnchor:refreshHost.centerYAnchor],
+    [_refreshSpinner.centerXAnchor constraintEqualToAnchor:refreshHost.centerXAnchor],
+    [_refreshSpinner.centerYAnchor constraintEqualToAnchor:refreshHost.centerYAnchor],
+  ]];
+  [_refreshBtn setContentHuggingPriority:UILayoutPriorityRequired forAxis:UILayoutConstraintAxisHorizontal];
+  [refreshHost setContentHuggingPriority:UILayoutPriorityRequired forAxis:UILayoutConstraintAxisHorizontal];
+  [refreshHost setContentCompressionResistancePriority:UILayoutPriorityRequired
+                                               forAxis:UILayoutConstraintAxisHorizontal];
 
-  UIStackView *header = [[UIStackView alloc] initWithArrangedSubviews:@[_collectedLabel, refreshWrap]];
+  UIStackView *header = [[UIStackView alloc] initWithArrangedSubviews:@[ _collectedLabel, refreshHost ]];
   header.axis = UILayoutConstraintAxisHorizontal;
   header.alignment = UIStackViewAlignmentCenter;
   header.spacing = 8;
+  header.tag = 9002;
   [_collectedLabel setContentHuggingPriority:UILayoutPriorityDefaultLow forAxis:UILayoutConstraintAxisHorizontal];
-  [refreshWrap setContentHuggingPriority:UILayoutPriorityRequired forAxis:UILayoutConstraintAxisHorizontal];
+  [_collectedLabel setContentCompressionResistancePriority:UILayoutPriorityDefaultLow
+                                                   forAxis:UILayoutConstraintAxisHorizontal];
 
   _errorLabel = [UILabel new];
   _errorLabel.numberOfLines = 0;
   _errorLabel.font = [UIFont systemFontOfSize:13];
-  _errorLabel.textColor = AutumnOpsUITheme.error;
   _errorLabel.hidden = YES;
 
   _loadingSpinner = [[UIActivityIndicatorView alloc] initWithActivityIndicatorStyle:UIActivityIndicatorViewStyleMedium];
@@ -127,6 +144,26 @@
   [_rootStack addArrangedSubview:_errorLabel];
   [_rootStack addArrangedSubview:loadingWrap];
   [_rootStack addArrangedSubview:_cardsStack];
+  // Flutter：header 后 error 前空 8；header→首卡无额外缝（cards 自带区隔）
+  [_rootStack setCustomSpacing:8 afterView:header];
+  [_rootStack setCustomSpacing:0 afterView:_errorLabel];
+  [_rootStack setCustomSpacing:0 afterView:loadingWrap];
+  [self _applyThemeColors];
+}
+
+- (void)traitCollectionDidChange:(UITraitCollection *)previousTraitCollection {
+  [super traitCollectionDidChange:previousTraitCollection];
+  if (@available(iOS 13.0, *)) {
+    if (![self.traitCollection hasDifferentColorAppearanceComparedToTraitCollection:previousTraitCollection]) return;
+  }
+  [self _applyThemeColors];
+}
+
+- (void)_applyThemeColors {
+  self.collectedLabel.textColor = AutumnOpsUITheme.onSurfaceVariant;
+  self.refreshBtn.tintColor = AutumnOpsUITheme.primary;
+  self.refreshSpinner.color = AutumnOpsUITheme.primary;
+  self.errorLabel.textColor = AutumnOpsUITheme.error;
 }
 
 - (void)reload {
@@ -135,6 +172,7 @@
 
 - (void)_updateRefreshEnabled {
   self.refreshBtn.enabled = !self.loading;
+  self.refreshBtn.hidden = self.loading;
   self.refreshBtn.alpha = self.loading ? 0.5 : 1.0;
 }
 

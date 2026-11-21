@@ -5,6 +5,7 @@
 @property (nonatomic, strong) UIView *dot;
 @property (nonatomic, strong) UILabel *label;
 @property (nonatomic, strong) UIStackView *row;
+@property (nonatomic) BOOL pillActive;
 @end
 
 @implementation AutumnOpsStatusPillView
@@ -72,14 +73,28 @@
 }
 
 - (void)setLabel:(NSString *)label active:(BOOL)active {
+  self.pillActive = active;
   self.label.text = label;
+  [self _applyThemeColors];
+  [self invalidateIntrinsicContentSize];
+  [self setNeedsLayout];
+}
+
+- (void)traitCollectionDidChange:(UITraitCollection *)previousTraitCollection {
+  [super traitCollectionDidChange:previousTraitCollection];
+  if (@available(iOS 13.0, *)) {
+    if (![self.traitCollection hasDifferentColorAppearanceComparedToTraitCollection:previousTraitCollection]) return;
+  }
+  [self _applyThemeColors];
+}
+
+- (void)_applyThemeColors {
+  BOOL active = self.pillActive;
   self.label.textColor = active ? AutumnOpsUITheme.onTertiaryContainer : AutumnOpsUITheme.onSurfaceVariant;
   self.backgroundColor = active
       ? [AutumnOpsUITheme.tertiaryContainer colorWithAlphaComponent:0.55]
       : [AutumnOpsUITheme.surfaceContainerHighest colorWithAlphaComponent:0.9];
   self.dot.backgroundColor = active ? AutumnOpsUITheme.tertiary : AutumnOpsUITheme.outline;
-  [self invalidateIntrinsicContentSize];
-  [self setNeedsLayout];
 }
 
 @end

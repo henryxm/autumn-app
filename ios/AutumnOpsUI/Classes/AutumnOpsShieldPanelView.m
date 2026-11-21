@@ -276,7 +276,7 @@ static const void *kShieldUriKey = &kShieldUriKey;
                                               statusLabel:on ? @"已开启" : @"已关闭"
                                            titleMonospace:YES];
     UIButton *toggle = [AutumnOpsRuleRowChromeView textAction:on ? @"关闭" : @"开启" target:self action:@selector(_toggle:)];
-    UIButton *del = [AutumnOpsRuleRowChromeView textAction:@"删除" target:self action:@selector(_delete:)];
+    UIButton *del = [AutumnOpsRuleRowChromeView destructiveTextAction:@"删除" target:self action:@selector(_delete:)];
     NSNumber *sid = @([row[@"id"] integerValue]);
     objc_setAssociatedObject(toggle, kShieldRowIdKey, sid, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     objc_setAssociatedObject(del, kShieldRowIdKey, sid, OBJC_ASSOCIATION_RETAIN_NONATOMIC);

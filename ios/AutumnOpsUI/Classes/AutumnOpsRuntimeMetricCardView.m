@@ -11,13 +11,12 @@
 - (instancetype)initWithTitle:(NSString *)title {
   self = [super initWithFrame:CGRectZero];
   if (self) {
-    self.backgroundColor = [AutumnOpsUITheme.surfaceContainerHighest colorWithAlphaComponent:0.55];
+    // 对齐 Flutter `_card`：highest@0.55、r=12、pad LTRB 14/12/14/14、标题 15 bold
     self.layer.cornerRadius = 12;
     self.clipsToBounds = YES;
 
     _titleLabel = [UILabel new];
     _titleLabel.font = [UIFont systemFontOfSize:15 weight:UIFontWeightBold];
-    _titleLabel.textColor = AutumnOpsUITheme.onSurface;
     _titleLabel.text = title;
 
     _contentStack = [[UIStackView alloc] init];
@@ -25,7 +24,7 @@
     _contentStack.spacing = 0;
     _contentStack.alignment = UIStackViewAlignmentFill;
 
-    UIStackView *root = [[UIStackView alloc] initWithArrangedSubviews:@[_titleLabel, _contentStack]];
+    UIStackView *root = [[UIStackView alloc] initWithArrangedSubviews:@[ _titleLabel, _contentStack ]];
     root.axis = UILayoutConstraintAxisVertical;
     root.alignment = UIStackViewAlignmentFill;
     root.spacing = 10;
@@ -37,8 +36,22 @@
       [root.trailingAnchor constraintEqualToAnchor:self.trailingAnchor constant:-14],
       [root.bottomAnchor constraintEqualToAnchor:self.bottomAnchor constant:-14],
     ]];
+    [self _applyThemeColors];
   }
   return self;
+}
+
+- (void)traitCollectionDidChange:(UITraitCollection *)previousTraitCollection {
+  [super traitCollectionDidChange:previousTraitCollection];
+  if (@available(iOS 13.0, *)) {
+    if (![self.traitCollection hasDifferentColorAppearanceComparedToTraitCollection:previousTraitCollection]) return;
+  }
+  [self _applyThemeColors];
+}
+
+- (void)_applyThemeColors {
+  self.backgroundColor = [AutumnOpsUITheme.surfaceContainerHighest colorWithAlphaComponent:0.55];
+  self.titleLabel.textColor = AutumnOpsUITheme.onSurface;
 }
 
 - (void)clearContent {

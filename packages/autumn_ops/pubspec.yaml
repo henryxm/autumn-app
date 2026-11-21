@@ -1,6 +1,6 @@
 name: autumn_ops
 description: Autumn ops mutual-RSA client (probe/enroll/session/adminip/gate). Private keys never leave the device.
-version: 0.1.4
+version: 0.1.18
 publish_to: 'none'
 
 environment:

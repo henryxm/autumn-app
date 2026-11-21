@@ -248,7 +248,7 @@ static const void *kJumpRowDictKey = &kJumpRowDictKey;
                                            titleMonospace:YES];
     UIButton *edit = [AutumnOpsRuleRowChromeView textAction:@"编辑" target:self action:@selector(_editTap:)];
     UIButton *toggle = [AutumnOpsRuleRowChromeView textAction:on ? @"关闭" : @"开启" target:self action:@selector(_toggle:)];
-    UIButton *del = [AutumnOpsRuleRowChromeView textAction:@"删除" target:self action:@selector(_delete:)];
+    UIButton *del = [AutumnOpsRuleRowChromeView destructiveTextAction:@"删除" target:self action:@selector(_delete:)];
     objc_setAssociatedObject(edit, kJumpRowDictKey, row, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     objc_setAssociatedObject(toggle, kJumpRowDictKey, row, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     objc_setAssociatedObject(del, kJumpRowDictKey, row, OBJC_ASSOCIATION_RETAIN_NONATOMIC);

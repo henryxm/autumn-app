@@ -27,6 +27,12 @@ static const CGFloat kAutumnOpsActionIcon = 20;
 @property (nonatomic, strong, nullable) NSLayoutConstraint *lowerColToTrailingHost;
 @property (nonatomic) BOOL highlightedBorder;
 @property (nonatomic) BOOL hasSplitBody;
+@property (nonatomic) BOOL rowActive;
+@property (nonatomic) BOOL titleMonospace;
+@property (nonatomic, copy) NSString *titleText;
+@property (nonatomic, copy, nullable) NSString *detailText;
+@property (nonatomic, copy, nullable) NSString *dateText;
+@property (nonatomic, copy, nullable) NSString *subtitleText;
 @end
 
 @implementation AutumnOpsRuleRowChromeView
@@ -40,9 +46,12 @@ static const CGFloat kAutumnOpsActionIcon = 20;
   if (self) {
     self.backgroundColor = UIColor.clearColor;
     self.clipsToBounds = NO;
+    _rowActive = active;
+    _titleMonospace = titleMonospace;
+    _titleText = [title copy] ?: @"";
+    _subtitleText = [subtitle copy];
 
     _card = [UIView new];
-    _card.backgroundColor = AutumnOpsUITheme.surface;
     _card.layer.cornerRadius = 12;
     _card.clipsToBounds = YES;
     [self addSubview:_card];
@@ -53,25 +62,12 @@ static const CGFloat kAutumnOpsActionIcon = 20;
       [_card.trailingAnchor constraintEqualToAnchor:self.trailingAnchor],
       [_card.bottomAnchor constraintEqualToAnchor:self.bottomAnchor constant:-8],
     ]];
-    [self setHighlightedBorder:NO];
 
     _accent = [UIView new];
-    _accent.backgroundColor = active ? AutumnOpsUITheme.tertiary : AutumnOpsUITheme.outlineVariant;
 
     _titleLabel = [UILabel new];
     _titleLabel.numberOfLines = 0;
     _titleLabel.lineBreakMode = NSLineBreakByCharWrapping;
-    UIFont *titleFont = titleMonospace
-        ? [UIFont monospacedSystemFontOfSize:15 weight:UIFontWeightSemibold]
-        : [UIFont systemFontOfSize:15 weight:UIFontWeightSemibold];
-    NSMutableParagraphStyle *titlePS = [NSMutableParagraphStyle new];
-    titlePS.lineHeightMultiple = 1.25;
-    _titleLabel.attributedText = [[NSAttributedString alloc] initWithString:title ?: @""
-                                                                attributes:@{
-                                                                  NSFontAttributeName : titleFont,
-                                                                  NSForegroundColorAttributeName : AutumnOpsUITheme.onSurface,
-                                                                  NSParagraphStyleAttributeName : titlePS,
-                                                                }];
 
     _metaStack = [UIStackView new];
     _metaStack.axis = UILayoutConstraintAxisHorizontal;
@@ -128,7 +124,6 @@ static const CGFloat kAutumnOpsActionIcon = 20;
     _subtitleLabel = [UILabel new];
     _subtitleLabel.numberOfLines = 0;
     _subtitleLabel.lineBreakMode = NSLineBreakByWordWrapping;
-    [self _applyBodyLabel:_subtitleLabel text:subtitle];
     _subtitleLabel.hidden = subtitle.length == 0;
 
     _actionsRow = [UIStackView new];
@@ -184,9 +179,39 @@ static const CGFloat kAutumnOpsActionIcon = 20;
       [_bodyCol.topAnchor constraintEqualToAnchor:_card.topAnchor constant:10],
       [_bodyCol.bottomAnchor constraintEqualToAnchor:_card.bottomAnchor constant:-8],
     ]];
+    [self _applyThemeColors];
     [self _refreshLowerVisibility];
   }
   return self;
+}
+
+- (void)traitCollectionDidChange:(UITraitCollection *)previousTraitCollection {
+  [super traitCollectionDidChange:previousTraitCollection];
+  if (@available(iOS 13.0, *)) {
+    if (![self.traitCollection hasDifferentColorAppearanceComparedToTraitCollection:previousTraitCollection]) return;
+  }
+  [self _applyThemeColors];
+}
+
+- (void)_applyThemeColors {
+  self.card.backgroundColor = AutumnOpsUITheme.surface;
+  self.accent.backgroundColor =
+      self.rowActive ? AutumnOpsUITheme.tertiary : AutumnOpsUITheme.outlineVariant;
+  UIFont *titleFont = self.titleMonospace
+      ? [UIFont monospacedSystemFontOfSize:15 weight:UIFontWeightSemibold]
+      : [UIFont systemFontOfSize:15 weight:UIFontWeightSemibold];
+  NSMutableParagraphStyle *titlePS = [NSMutableParagraphStyle new];
+  titlePS.lineHeightMultiple = 1.25;
+  self.titleLabel.attributedText = [[NSAttributedString alloc] initWithString:self.titleText ?: @""
+                                                                   attributes:@{
+                                                                     NSFontAttributeName : titleFont,
+                                                                     NSForegroundColorAttributeName : AutumnOpsUITheme.onSurface,
+                                                                     NSParagraphStyleAttributeName : titlePS,
+                                                                   }];
+  [self _applyBodyLabel:self.subtitleLabel text:self.subtitleText];
+  [self _applyBodyLabel:self.detailLabel text:self.detailText];
+  [self _applyBodyLabel:self.dateLabel text:self.dateText];
+  [self setHighlightedBorder:self.highlightedBorder];
 }
 
 - (void)_applyBodyLabel:(UILabel *)label text:(NSString *)text {
@@ -248,9 +273,11 @@ static const CGFloat kAutumnOpsActionIcon = 20;
   BOOL hasDetail = detail.length > 0;
   BOOL hasDate = dateLine.length > 0;
   self.hasSplitBody = hasDetail || hasDate;
-  [self _applyBodyLabel:self.detailLabel text:hasDetail ? detail : nil];
+  self.detailText = hasDetail ? [detail copy] : nil;
+  self.dateText = hasDate ? [dateLine copy] : nil;
+  [self _applyBodyLabel:self.detailLabel text:self.detailText];
   self.detailLabel.hidden = !hasDetail;
-  [self _applyBodyLabel:self.dateLabel text:hasDate ? dateLine : nil];
+  [self _applyBodyLabel:self.dateLabel text:self.dateText];
   self.dateLabel.hidden = !hasDate;
   [self _refreshLowerVisibility];
   [self setNeedsLayout];
@@ -301,7 +328,20 @@ static const CGFloat kAutumnOpsActionIcon = 20;
     [self.actionsRow removeArrangedSubview:v];
     [v removeFromSuperview];
   }
-  for (UIView *a in actions) [self.actionsRow addArrangedSubview:a];
+  // 对齐 Flutter OpsRuleRowChrome：Spacer + actions → 底栏开启/编辑/删除右对齐
+  if (actions.count > 0) {
+    UIView *spacer = [UIView new];
+    [spacer setContentHuggingPriority:UILayoutPriorityDefaultLow forAxis:UILayoutConstraintAxisHorizontal];
+    [spacer setContentCompressionResistancePriority:UILayoutPriorityDefaultLow
+                                            forAxis:UILayoutConstraintAxisHorizontal];
+    [self.actionsRow addArrangedSubview:spacer];
+    for (UIView *a in actions) {
+      [a setContentHuggingPriority:UILayoutPriorityRequired forAxis:UILayoutConstraintAxisHorizontal];
+      [a setContentCompressionResistancePriority:UILayoutPriorityRequired
+                                          forAxis:UILayoutConstraintAxisHorizontal];
+      [self.actionsRow addArrangedSubview:a];
+    }
+  }
   self.actionsRow.hidden = actions.count == 0;
   [self _refreshLowerVisibility];
 }

@@ -18,7 +18,6 @@
   if (self) {
     // 对齐 Flutter OpsCountChipBar：Stadium 真胶囊；禁止横排 Fill 拉宽成豆荚。
     _chipWrap = [UIView new];
-    _chipWrap.backgroundColor = [AutumnOpsUITheme.surfaceContainerHighest colorWithAlphaComponent:0.7];
     _chipWrap.clipsToBounds = YES;
     if (@available(iOS 13.0, *)) {
       _chipWrap.layer.cornerCurve = kCACornerCurveCircular;
@@ -26,7 +25,6 @@
 
     _chipLabel = [UILabel new];
     _chipLabel.font = [UIFont systemFontOfSize:12 weight:UIFontWeightMedium];
-    _chipLabel.textColor = AutumnOpsUITheme.onSurfaceVariant;
     _chipLabel.numberOfLines = 1;
     [_chipWrap addSubview:_chipLabel];
     _chipLabel.translatesAutoresizingMaskIntoConstraints = NO;
@@ -45,7 +43,6 @@
     _moreBtn = [UIButton buttonWithType:UIButtonTypeSystem];
     [_moreBtn setTitle:@"加载更多" forState:UIControlStateNormal];
     _moreBtn.titleLabel.font = [UIFont systemFontOfSize:12];
-    [_moreBtn setTitleColor:AutumnOpsUITheme.primary forState:UIControlStateNormal];
     [_moreBtn addTarget:self action:@selector(_more) forControlEvents:UIControlEventTouchUpInside];
     _moreBtn.hidden = YES;
     [_moreBtn setContentHuggingPriority:UILayoutPriorityRequired forAxis:UILayoutConstraintAxisHorizontal];
@@ -67,8 +64,23 @@
       [_row.trailingAnchor constraintEqualToAnchor:self.trailingAnchor],
       [_row.bottomAnchor constraintEqualToAnchor:self.bottomAnchor constant:-4],
     ]];
+    [self _applyThemeColors];
   }
   return self;
+}
+
+- (void)traitCollectionDidChange:(UITraitCollection *)previousTraitCollection {
+  [super traitCollectionDidChange:previousTraitCollection];
+  if (@available(iOS 13.0, *)) {
+    if (![self.traitCollection hasDifferentColorAppearanceComparedToTraitCollection:previousTraitCollection]) return;
+  }
+  [self _applyThemeColors];
+}
+
+- (void)_applyThemeColors {
+  self.chipWrap.backgroundColor = [AutumnOpsUITheme.surfaceContainerHighest colorWithAlphaComponent:0.7];
+  self.chipLabel.textColor = AutumnOpsUITheme.onSurfaceVariant;
+  [self.moreBtn setTitleColor:AutumnOpsUITheme.primary forState:UIControlStateNormal];
 }
 
 - (void)setTrailingView:(UIView *)trailingView {

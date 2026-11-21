@@ -1492,7 +1492,7 @@ class _OpsManageSitePageState extends State<OpsManageSitePage>
                           if (mounted) await _openRecovery();
                         });
                       },
-                style: TextButton.styleFrom(foregroundColor: Colors.redAccent),
+                style: TextButton.styleFrom(foregroundColor: scheme.error),
                 child: const Text('清除本机证书'),
               ),
             ),

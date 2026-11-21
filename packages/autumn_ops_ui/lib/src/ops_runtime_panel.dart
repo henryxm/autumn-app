@@ -87,16 +87,25 @@ class _OpsRuntimePanelState extends State<OpsRuntimePanel> {
                   ),
                 ),
               ),
-              TextButton.icon(
+              // 与 ListView padding 16 同缘右对齐；仅小图标（无「刷新」文案）
+              IconButton(
                 onPressed: (_loading || widget.busy) ? null : _refresh,
+                visualDensity: VisualDensity.compact,
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                iconSize: 16,
+                tooltip: '刷新',
+                color: Theme.of(context).colorScheme.primary,
                 icon: _loading
-                    ? const SizedBox(
+                    ? SizedBox(
                         width: 14,
                         height: 14,
-                        child: CircularProgressIndicator(strokeWidth: 2),
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
                       )
-                    : const Icon(Icons.refresh, size: 18),
-                label: const Text('刷新'),
+                    : const Icon(Icons.refresh),
               ),
             ],
           ),

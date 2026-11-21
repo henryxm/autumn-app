@@ -7,6 +7,7 @@
 @property (nonatomic, strong, readwrite) UIButton *actionButton;
 @property (nonatomic, strong) UIView *divider;
 @property (nonatomic) BOOL barEnabled;
+@property (nonatomic) BOOL labelSelected;
 @end
 
 @implementation AutumnOpsFusedActionBarView
@@ -18,14 +19,11 @@
   self = [super initWithFrame:CGRectZero];
   if (self) {
     _barEnabled = YES;
-    self.backgroundColor = AutumnOpsUITheme.surface;
     self.layer.cornerRadius = 12;
     self.clipsToBounds = YES;
-    [AutumnOpsUITheme applyBorderToLayer:self.layer color:AutumnOpsUITheme.outlineVariant width:1];
 
     _iconView = [UIImageView new];
     _iconView.contentMode = UIViewContentModeScaleAspectFit;
-    _iconView.tintColor = AutumnOpsUITheme.onSurfaceVariant;
     if (systemName.length) {
       UIImageSymbolConfiguration *cfg =
           [UIImageSymbolConfiguration configurationWithPointSize:20 weight:UIImageSymbolWeightRegular];
@@ -36,20 +34,16 @@
 
     _label = [UILabel new];
     _label.font = [UIFont systemFontOfSize:14];
-    _label.textColor = [AutumnOpsUITheme.onSurfaceVariant colorWithAlphaComponent:0.85];
     _label.lineBreakMode = NSLineBreakByTruncatingMiddle;
     [_label setContentHuggingPriority:UILayoutPriorityDefaultLow forAxis:UILayoutConstraintAxisHorizontal];
     [_label setContentCompressionResistancePriority:UILayoutPriorityDefaultLow
                                              forAxis:UILayoutConstraintAxisHorizontal];
 
     _divider = [UIView new];
-    _divider.backgroundColor = AutumnOpsUITheme.outlineVariant;
 
     _actionButton = [UIButton buttonWithType:UIButtonTypeSystem];
     [_actionButton setTitle:actionTitle forState:UIControlStateNormal];
     _actionButton.titleLabel.font = [UIFont systemFontOfSize:15 weight:UIFontWeightSemibold];
-    [_actionButton setTitleColor:AutumnOpsUITheme.primary forState:UIControlStateNormal];
-    [_actionButton setTitleColor:[AutumnOpsUITheme.onSurface colorWithAlphaComponent:0.38] forState:UIControlStateDisabled];
     _actionButton.contentEdgeInsets = UIEdgeInsetsMake(8, 14, 8, 14);
     [_actionButton setContentHuggingPriority:UILayoutPriorityRequired forAxis:UILayoutConstraintAxisHorizontal];
     [_actionButton setContentCompressionResistancePriority:UILayoutPriorityRequired
@@ -92,12 +86,34 @@
 
     UITapGestureRecognizer *tap = [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(_barTapped)];
     [self addGestureRecognizer:tap];
+    [self _applyThemeColors];
   }
   return self;
 }
 
+- (void)traitCollectionDidChange:(UITraitCollection *)previousTraitCollection {
+  [super traitCollectionDidChange:previousTraitCollection];
+  if (@available(iOS 13.0, *)) {
+    if (![self.traitCollection hasDifferentColorAppearanceComparedToTraitCollection:previousTraitCollection]) return;
+  }
+  [self _applyThemeColors];
+}
+
+- (void)_applyThemeColors {
+  self.backgroundColor = AutumnOpsUITheme.surface;
+  [AutumnOpsUITheme applyBorderToLayer:self.layer color:AutumnOpsUITheme.outlineVariant width:1];
+  self.iconView.tintColor = AutumnOpsUITheme.onSurfaceVariant;
+  self.divider.backgroundColor = AutumnOpsUITheme.outlineVariant;
+  [self.actionButton setTitleColor:AutumnOpsUITheme.primary forState:UIControlStateNormal];
+  [self.actionButton setTitleColor:[AutumnOpsUITheme.onSurface colorWithAlphaComponent:0.38] forState:UIControlStateDisabled];
+  self.label.textColor = self.labelSelected
+      ? AutumnOpsUITheme.onSurface
+      : [AutumnOpsUITheme.onSurfaceVariant colorWithAlphaComponent:0.85];
+}
+
 - (void)setLabelText:(NSString *)text selected:(BOOL)selected {
   self.label.text = text;
+  self.labelSelected = selected;
   self.label.textColor = selected
       ? AutumnOpsUITheme.onSurface
       : [AutumnOpsUITheme.onSurfaceVariant colorWithAlphaComponent:0.85];

@@ -65,6 +65,9 @@ bump_yaml packages/autumn_ops/pubspec.yaml
 bump_yaml packages/autumn_ops_ui/pubspec.yaml
 bump_podspec ios/AutumnOpsCore/AutumnOpsCore.podspec
 bump_podspec ios/AutumnOpsUI/AutumnOpsUI.podspec
+# 根目录 podspec：宿主 :git 引用入口（与 ios/ 子目录版本必须同号）
+bump_podspec AutumnOpsCore.podspec
+bump_podspec AutumnOpsUI.podspec
 
 echo "==> 版本已改为 $NEW"
 git diff --stat
@@ -75,7 +78,8 @@ if [[ "$DRY" -eq 1 ]]; then
 fi
 
 git add packages/autumn_ops/pubspec.yaml packages/autumn_ops_ui/pubspec.yaml \
-  ios/AutumnOpsCore/AutumnOpsCore.podspec ios/AutumnOpsUI/AutumnOpsUI.podspec
+  ios/AutumnOpsCore/AutumnOpsCore.podspec ios/AutumnOpsUI/AutumnOpsUI.podspec \
+  AutumnOpsCore.podspec AutumnOpsUI.podspec
 git commit -m "chore(ops): 发版 ${TAG}。" -m "${MSG}"
 
 git tag -a "$TAG" -m "ops packages v${NEW}: ${MSG}"

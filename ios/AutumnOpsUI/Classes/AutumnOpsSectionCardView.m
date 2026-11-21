@@ -9,6 +9,7 @@
 @property (nonatomic, strong) UILabel *bodyLabel;
 @property (nonatomic, strong) UIStackView *contentStack;
 @property (nonatomic) BOOL outlined;
+@property (nonatomic, copy) NSString *bodyTextStorage;
 @end
 
 @implementation AutumnOpsSectionCardView
@@ -16,15 +17,14 @@
 - (instancetype)initWithTitle:(NSString *)title body:(NSString *)body {
   self = [super initWithFrame:CGRectZero];
   if (self) {
-    self.backgroundColor = AutumnOpsUITheme.cardFill;
     self.layer.cornerRadius = 14;
     self.clipsToBounds = YES;
+    _bodyTextStorage = [body copy] ?: @"";
 
     _titleLeadingSlot = [UIView new];
     _titleLeadingSlot.hidden = YES;
     _titleLabel = [UILabel new];
     _titleLabel.font = [UIFont systemFontOfSize:15 weight:UIFontWeightBold];
-    _titleLabel.textColor = AutumnOpsUITheme.onSurface;
     _titleLabel.text = title;
     _titleLabel.numberOfLines = 1;
     _titleAccessorySlot = [UIView new];
@@ -38,15 +38,6 @@
 
     _bodyLabel = [UILabel new];
     _bodyLabel.numberOfLines = 0;
-    // Flutter body：13 / height 1.45 / onSurfaceVariant
-    NSMutableParagraphStyle *ps = [NSMutableParagraphStyle new];
-    ps.lineHeightMultiple = 1.45;
-    _bodyLabel.attributedText = [[NSAttributedString alloc] initWithString:body ?: @""
-        attributes:@{
-          NSFontAttributeName : [UIFont systemFontOfSize:13],
-          NSForegroundColorAttributeName : AutumnOpsUITheme.onSurfaceVariant,
-          NSParagraphStyleAttributeName : ps,
-        }];
 
     _contentStack = [[UIStackView alloc] init];
     _contentStack.axis = UILayoutConstraintAxisVertical;
@@ -67,14 +58,31 @@
       [root.trailingAnchor constraintEqualToAnchor:self.trailingAnchor constant:-16],
       [root.bottomAnchor constraintEqualToAnchor:self.bottomAnchor constant:-16],
     ]];
+    [self _applyThemeColors];
   }
   return self;
 }
 
+- (void)traitCollectionDidChange:(UITraitCollection *)previousTraitCollection {
+  [super traitCollectionDidChange:previousTraitCollection];
+  if (@available(iOS 13.0, *)) {
+    if (![self.traitCollection hasDifferentColorAppearanceComparedToTraitCollection:previousTraitCollection]) return;
+  }
+  [self _applyThemeColors];
+}
+
+- (void)_applyThemeColors {
+  self.backgroundColor = AutumnOpsUITheme.cardFill;
+  self.titleLabel.textColor = AutumnOpsUITheme.onSurface;
+  [self setBodyText:self.bodyTextStorage];
+  [self setOutlined:self.outlined];
+}
+
 - (void)setBodyText:(NSString *)body {
+  self.bodyTextStorage = [body copy] ?: @"";
   NSMutableParagraphStyle *ps = [NSMutableParagraphStyle new];
   ps.lineHeightMultiple = 1.45;
-  self.bodyLabel.attributedText = [[NSAttributedString alloc] initWithString:body ?: @""
+  self.bodyLabel.attributedText = [[NSAttributedString alloc] initWithString:self.bodyTextStorage
       attributes:@{
         NSFontAttributeName : [UIFont systemFontOfSize:13],
         NSForegroundColorAttributeName : AutumnOpsUITheme.onSurfaceVariant,

@@ -10,6 +10,8 @@ static const CGFloat kDisabledAlpha = 0.38;
 @property (nonatomic) BOOL compact;
 @property (nonatomic) CGFloat padV;
 @property (nonatomic) CGFloat padH;
+@property (nonatomic) AutumnOpsChipKind chipKind;
+@property (nonatomic, copy) NSString *chipText;
 @end
 
 @implementation AutumnOpsChipView
@@ -57,6 +59,61 @@ static const CGFloat kDisabledAlpha = 0.38;
   [self setNeedsLayout];
 }
 
+- (void)traitCollectionDidChange:(UITraitCollection *)previousTraitCollection {
+  [super traitCollectionDidChange:previousTraitCollection];
+  if (@available(iOS 13.0, *)) {
+    if (![self.traitCollection hasDifferentColorAppearanceComparedToTraitCollection:previousTraitCollection]) return;
+  }
+  if (self.chipText) {
+    [AutumnOpsUIControls applyChipKind:self.chipKind toChip:self text:self.chipText];
+  }
+}
+
+@end
+
+@interface AutumnOpsTokenInputBarView : UIView
+@property (nonatomic, strong) UITextField *field;
+@property (nonatomic, strong) UIButton *clearBtn;
+@property (nonatomic, strong) UIButton *actionBtn;
+@property (nonatomic, strong) UIView *divider;
+@end
+
+@implementation AutumnOpsTokenInputBarView
+
+- (void)traitCollectionDidChange:(UITraitCollection *)previousTraitCollection {
+  [super traitCollectionDidChange:previousTraitCollection];
+  if (@available(iOS 13.0, *)) {
+    if (![self.traitCollection hasDifferentColorAppearanceComparedToTraitCollection:previousTraitCollection]) return;
+  }
+  [self applyThemeColors];
+}
+
+- (void)applyThemeColors {
+  self.backgroundColor = AutumnOpsUITheme.surface;
+  [AutumnOpsUITheme applyBorderToLayer:self.layer color:AutumnOpsUITheme.outlineVariant width:1];
+  self.field.textColor = AutumnOpsUITheme.onSurface;
+  self.field.attributedPlaceholder = [[NSAttributedString alloc] initWithString:@"输入令牌后保存校验，或修改后保存"
+      attributes:@{NSForegroundColorAttributeName : [AutumnOpsUITheme.onSurfaceVariant colorWithAlphaComponent:0.7]}];
+  self.clearBtn.tintColor = [AutumnOpsUITheme.onSurfaceVariant colorWithAlphaComponent:0.55];
+  [self.actionBtn setTitleColor:AutumnOpsUITheme.primary forState:UIControlStateNormal];
+  [self.actionBtn setTitleColor:[AutumnOpsUITheme.onSurface colorWithAlphaComponent:0.38] forState:UIControlStateDisabled];
+  self.divider.backgroundColor = AutumnOpsUITheme.outlineVariant;
+}
+
+@end
+
+@interface AutumnOpsStyledButton : UIButton
+@property (nonatomic) AutumnOpsButtonStyle opsStyle;
+@end
+
+@implementation AutumnOpsStyledButton
+- (void)traitCollectionDidChange:(UITraitCollection *)previousTraitCollection {
+  [super traitCollectionDidChange:previousTraitCollection];
+  if (@available(iOS 13.0, *)) {
+    if (![self.traitCollection hasDifferentColorAppearanceComparedToTraitCollection:previousTraitCollection]) return;
+  }
+  [AutumnOpsUIControls applyStyle:self.opsStyle toButton:self];
+}
 @end
 
 @implementation AutumnOpsUIControls
@@ -65,7 +122,8 @@ static const CGFloat kDisabledAlpha = 0.38;
                         style:(AutumnOpsButtonStyle)style
                        target:(id)target
                        action:(SEL)action {
-  UIButton *b = [UIButton buttonWithType:UIButtonTypeCustom];
+  AutumnOpsStyledButton *b = [AutumnOpsStyledButton buttonWithType:UIButtonTypeCustom];
+  b.opsStyle = style;
   [b setTitle:title forState:UIControlStateNormal];
   b.titleLabel.font = [UIFont systemFontOfSize:15 weight:UIFontWeightSemibold];
   b.titleLabel.numberOfLines = 1;
@@ -79,6 +137,9 @@ static const CGFloat kDisabledAlpha = 0.38;
 }
 
 + (void)applyStyle:(AutumnOpsButtonStyle)style toButton:(UIButton *)button {
+  if ([button isKindOfClass:[AutumnOpsStyledButton class]]) {
+    ((AutumnOpsStyledButton *)button).opsStyle = style;
+  }
   button.clipsToBounds = YES;
   button.layer.cornerRadius = kBtnMinH / 2.0;
   switch (style) {
@@ -112,6 +173,8 @@ static const CGFloat kDisabledAlpha = 0.38;
 }
 
 + (void)applyChipKind:(AutumnOpsChipKind)kind toChip:(AutumnOpsChipView *)chip text:(NSString *)text {
+  chip.chipKind = kind;
+  chip.chipText = [text copy] ?: @"";
   chip.label.text = text;
   [chip invalidateChipSize];
   // 与 Flutter Chip backgroundColor alpha 一致（非预烘焙叠色）
@@ -153,38 +216,34 @@ static const CGFloat kDisabledAlpha = 0.38;
                       actionButton:(UIButton **)outAction
                             target:(id)target
                             action:(SEL)action {
-  UIView *bar = [UIView new];
-  bar.backgroundColor = AutumnOpsUITheme.surface;
+  AutumnOpsTokenInputBarView *bar = [AutumnOpsTokenInputBarView new];
   bar.layer.cornerRadius = 12;
   bar.clipsToBounds = YES;
-  [AutumnOpsUITheme applyBorderToLayer:bar.layer color:AutumnOpsUITheme.outlineVariant width:1];
 
   UITextField *field = [UITextField new];
   field.secureTextEntry = YES;
   field.font = [UIFont systemFontOfSize:15];
   field.borderStyle = UITextBorderStyleNone;
-  field.textColor = AutumnOpsUITheme.onSurface;
-  field.attributedPlaceholder = [[NSAttributedString alloc] initWithString:@"输入令牌后保存校验，或修改后保存"
-                                                                attributes:@{NSForegroundColorAttributeName : [AutumnOpsUITheme.onSurfaceVariant colorWithAlphaComponent:0.7]}];
 
   UIButton *clearBtn = [UIButton buttonWithType:UIButtonTypeSystem];
   UIImageSymbolConfiguration *cfg = [UIImageSymbolConfiguration configurationWithPointSize:14 weight:UIImageSymbolWeightMedium];
   [clearBtn setImage:[UIImage systemImageNamed:@"xmark.circle.fill" withConfiguration:cfg] forState:UIControlStateNormal];
-  clearBtn.tintColor = [AutumnOpsUITheme.onSurfaceVariant colorWithAlphaComponent:0.55];
   clearBtn.hidden = YES;
 
   UIButton *btn = [UIButton buttonWithType:UIButtonTypeSystem];
   [btn setTitle:@"保存" forState:UIControlStateNormal];
   btn.titleLabel.font = [UIFont systemFontOfSize:15 weight:UIFontWeightSemibold];
-  [btn setTitleColor:AutumnOpsUITheme.primary forState:UIControlStateNormal];
-  [btn setTitleColor:[AutumnOpsUITheme.onSurface colorWithAlphaComponent:0.38] forState:UIControlStateDisabled];
   btn.contentEdgeInsets = UIEdgeInsetsMake(8, 16, 8, 16);
   if (target && action) {
     [btn addTarget:target action:action forControlEvents:UIControlEventTouchUpInside];
   }
 
   UIView *divider = [UIView new];
-  divider.backgroundColor = AutumnOpsUITheme.outlineVariant;
+
+  bar.field = field;
+  bar.clearBtn = clearBtn;
+  bar.actionBtn = btn;
+  bar.divider = divider;
 
   [bar addSubview:field];
   [bar addSubview:clearBtn];
@@ -213,6 +272,7 @@ static const CGFloat kDisabledAlpha = 0.38;
     [btn.bottomAnchor constraintEqualToAnchor:bar.bottomAnchor],
     [btn.widthAnchor constraintGreaterThanOrEqualToConstant:64],
   ]];
+  [bar applyThemeColors];
 
   if (outField) *outField = field;
   if (outClear) *outClear = clearBtn;

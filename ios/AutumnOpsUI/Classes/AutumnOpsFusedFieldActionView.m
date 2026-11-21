@@ -8,6 +8,7 @@
 @property (nonatomic, strong, nullable) UIView *trailingView;
 @property (nonatomic, strong) NSLayoutConstraint *fieldTrailingToDivider;
 @property (nonatomic, strong) NSLayoutConstraint *fieldTrailingToTrailing;
+@property (nonatomic, copy) NSString *hintText;
 @end
 
 @implementation AutumnOpsFusedFieldActionView
@@ -18,18 +19,14 @@
                       action:(SEL)action {
   self = [super initWithFrame:CGRectZero];
   if (self) {
-    self.backgroundColor = AutumnOpsUITheme.surface;
+    _hintText = [hint copy] ?: @"";
     self.layer.cornerRadius = 12;
     self.clipsToBounds = YES;
-    [AutumnOpsUITheme applyBorderToLayer:self.layer color:AutumnOpsUITheme.outlineVariant width:1];
 
     _textField = [UITextField new];
     _textField.borderStyle = UITextBorderStyleNone;
     _textField.font = [UIFont systemFontOfSize:15];
-    _textField.textColor = AutumnOpsUITheme.onSurface;
     _textField.clearButtonMode = UITextFieldViewModeWhileEditing;
-    _textField.attributedPlaceholder = [[NSAttributedString alloc] initWithString:hint ?: @""
-        attributes:@{NSForegroundColorAttributeName : [AutumnOpsUITheme.onSurfaceVariant colorWithAlphaComponent:0.7]}];
     // 对齐 Flutter Expanded：输入区吃满剩余宽度，勿被按钮挤扁
     [_textField setContentHuggingPriority:UILayoutPriorityDefaultLow forAxis:UILayoutConstraintAxisHorizontal];
     [_textField setContentCompressionResistancePriority:UILayoutPriorityDefaultLow
@@ -38,8 +35,6 @@
     _actionButton = [UIButton buttonWithType:UIButtonTypeSystem];
     [_actionButton setTitle:actionTitle forState:UIControlStateNormal];
     _actionButton.titleLabel.font = [UIFont systemFontOfSize:15 weight:UIFontWeightSemibold];
-    [_actionButton setTitleColor:AutumnOpsUITheme.primary forState:UIControlStateNormal];
-    [_actionButton setTitleColor:[AutumnOpsUITheme.onSurface colorWithAlphaComponent:0.38] forState:UIControlStateDisabled];
     // Flutter TextButton padding horizontal 16；固有宽度贴文案，禁止拉伸
     _actionButton.contentEdgeInsets = UIEdgeInsetsMake(8, 14, 8, 14);
     [_actionButton setContentHuggingPriority:UILayoutPriorityRequired forAxis:UILayoutConstraintAxisHorizontal];
@@ -50,7 +45,6 @@
     }
 
     _divider = [UIView new];
-    _divider.backgroundColor = AutumnOpsUITheme.outlineVariant;
     [_divider setContentHuggingPriority:UILayoutPriorityRequired forAxis:UILayoutConstraintAxisHorizontal];
     [_divider setContentCompressionResistancePriority:UILayoutPriorityRequired
                                                forAxis:UILayoutConstraintAxisHorizontal];
@@ -79,8 +73,28 @@
       [_actionButton.topAnchor constraintEqualToAnchor:self.topAnchor],
       [_actionButton.bottomAnchor constraintEqualToAnchor:self.bottomAnchor],
     ]];
+    [self _applyThemeColors];
   }
   return self;
+}
+
+- (void)traitCollectionDidChange:(UITraitCollection *)previousTraitCollection {
+  [super traitCollectionDidChange:previousTraitCollection];
+  if (@available(iOS 13.0, *)) {
+    if (![self.traitCollection hasDifferentColorAppearanceComparedToTraitCollection:previousTraitCollection]) return;
+  }
+  [self _applyThemeColors];
+}
+
+- (void)_applyThemeColors {
+  self.backgroundColor = AutumnOpsUITheme.surface;
+  [AutumnOpsUITheme applyBorderToLayer:self.layer color:AutumnOpsUITheme.outlineVariant width:1];
+  self.textField.textColor = AutumnOpsUITheme.onSurface;
+  self.textField.attributedPlaceholder = [[NSAttributedString alloc] initWithString:self.hintText
+      attributes:@{NSForegroundColorAttributeName : [AutumnOpsUITheme.onSurfaceVariant colorWithAlphaComponent:0.7]}];
+  [self.actionButton setTitleColor:AutumnOpsUITheme.primary forState:UIControlStateNormal];
+  [self.actionButton setTitleColor:[AutumnOpsUITheme.onSurface colorWithAlphaComponent:0.38] forState:UIControlStateDisabled];
+  self.divider.backgroundColor = AutumnOpsUITheme.outlineVariant;
 }
 
 - (void)setActionTitle:(NSString *)title {

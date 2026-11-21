@@ -117,6 +117,38 @@ static NSString * const kSiteCellId = @"AutumnOpsSiteListCell";
   [self.navigationController pushViewController:[[AutumnOpsAddSiteViewController alloc] initWithPresetBaseURL:nil autoProbe:NO] animated:YES];
 }
 
+- (void)_renameSite:(AutumnOpsSiteEntry *)site {
+  UIAlertController *a = [UIAlertController alertControllerWithTitle:@"修改名称"
+                                                             message:nil
+                                                      preferredStyle:UIAlertControllerStyleAlert];
+  [a addTextFieldWithConfigurationHandler:^(UITextField *tf) {
+    tf.text = site.title ?: @"";
+    tf.placeholder = @"显示名称（选填）";
+    tf.clearButtonMode = UITextFieldViewModeWhileEditing;
+    tf.autocapitalizationType = UITextAutocapitalizationTypeNone;
+    tf.autocorrectionType = UITextAutocorrectionTypeNo;
+  }];
+  [a addAction:[UIAlertAction actionWithTitle:@"取消" style:UIAlertActionStyleCancel handler:nil]];
+  __weak typeof(self) weakSelf = self;
+  [a addAction:[UIAlertAction actionWithTitle:@"保存" style:UIAlertActionStyleDefault handler:^(UIAlertAction *_) {
+    NSString *raw = a.textFields.firstObject.text ?: @"";
+    AutumnOpsValidateResult *vr = [AutumnOpsValidators siteTitle:raw];
+    if (!vr.ok) {
+      UIAlertController *err = [UIAlertController alertControllerWithTitle:nil
+                                                                   message:vr.error ?: @"名称无效"
+                                                            preferredStyle:UIAlertControllerStyleAlert];
+      [err addAction:[UIAlertAction actionWithTitle:@"好" style:UIAlertActionStyleDefault handler:nil]];
+      [weakSelf presentViewController:err animated:YES completion:nil];
+      return;
+    }
+    NSString *next = [raw stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet];
+    site.title = next;
+    [weakSelf.siteStore upsertSite:site error:nil];
+    [weakSelf _reload];
+  }]];
+  [self presentViewController:a animated:YES completion:nil];
+}
+
 - (void)_confirmDelete:(AutumnOpsSiteEntry *)site {
   NSString *name = site.title.length ? site.title : (site.baseUrl ?: @"");
   __weak typeof(self) weakSelf = self;
@@ -141,6 +173,9 @@ static NSString * const kSiteCellId = @"AutumnOpsSiteListCell";
   AutumnOpsSiteEntry *e = self.sites[indexPath.row];
   [cell configureWithSite:e];
   __weak typeof(self) weakSelf = self;
+  cell.onRename = ^{
+    [weakSelf _renameSite:e];
+  };
   cell.onDelete = ^{
     [weakSelf _confirmDelete:e];
   };

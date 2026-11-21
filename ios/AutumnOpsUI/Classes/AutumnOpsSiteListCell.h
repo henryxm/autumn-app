@@ -3,8 +3,9 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-/// Flutter OpsSitesPage 行卡：圆角浅底 + 标题/副标题 + 删除。
+/// Flutter OpsSitesPage 行卡：圆角浅底 + 标题/副标题 + 改名/删除。
 @interface AutumnOpsSiteListCell : UITableViewCell
+@property (nonatomic, copy, nullable) void (^onRename)(void);
 @property (nonatomic, copy, nullable) void (^onDelete)(void);
 - (void)configureWithSite:(AutumnOpsSiteEntry *)site;
 @end

@@ -7,6 +7,7 @@
 @property (nonatomic, strong) UIView *card;
 @property (nonatomic, strong) UILabel *titleLabel;
 @property (nonatomic, strong) UILabel *subtitleLabel;
+@property (nonatomic, strong) UIButton *renameBtn;
 @property (nonatomic, strong) UIButton *deleteBtn;
 @end
 
@@ -36,25 +37,32 @@
     _subtitleLabel.textColor = AutumnOpsUITheme.onSurfaceVariant;
     _subtitleLabel.numberOfLines = 0;
 
-    _deleteBtn = [UIButton buttonWithType:UIButtonTypeSystem];
     UIImageSymbolConfiguration *cfg =
         [UIImageSymbolConfiguration configurationWithPointSize:18 weight:UIImageSymbolWeightRegular];
+
+    _renameBtn = [UIButton buttonWithType:UIButtonTypeSystem];
+    [_renameBtn setImage:[UIImage systemImageNamed:@"pencil" withConfiguration:cfg] forState:UIControlStateNormal];
+    _renameBtn.tintColor = AutumnOpsUITheme.onSurfaceVariant;
+    _renameBtn.accessibilityLabel = @"修改名称";
+    [_renameBtn addTarget:self action:@selector(_renameTapped) forControlEvents:UIControlEventTouchUpInside];
+
+    _deleteBtn = [UIButton buttonWithType:UIButtonTypeSystem];
     [_deleteBtn setImage:[UIImage systemImageNamed:@"trash" withConfiguration:cfg] forState:UIControlStateNormal];
     _deleteBtn.tintColor = AutumnOpsUITheme.onSurfaceVariant;
     _deleteBtn.accessibilityLabel = @"从本机移除";
     [_deleteBtn addTarget:self action:@selector(_deleteTapped) forControlEvents:UIControlEventTouchUpInside];
 
-    UIStackView *textCol = [[UIStackView alloc] initWithArrangedSubviews:@[_titleLabel, _subtitleLabel]];
+    UIStackView *textCol = [[UIStackView alloc] initWithArrangedSubviews:@[ _titleLabel, _subtitleLabel ]];
     textCol.axis = UILayoutConstraintAxisVertical;
     textCol.spacing = 4;
     textCol.alignment = UIStackViewAlignmentFill;
     [_titleLabel setContentHuggingPriority:UILayoutPriorityDefaultLow forAxis:UILayoutConstraintAxisHorizontal];
     [_subtitleLabel setContentHuggingPriority:UILayoutPriorityDefaultLow forAxis:UILayoutConstraintAxisHorizontal];
 
-    UIStackView *row = [[UIStackView alloc] initWithArrangedSubviews:@[textCol, _deleteBtn]];
+    UIStackView *row = [[UIStackView alloc] initWithArrangedSubviews:@[ textCol, _renameBtn, _deleteBtn ]];
     row.axis = UILayoutConstraintAxisHorizontal;
     row.alignment = UIStackViewAlignmentCenter;
-    row.spacing = 8;
+    row.spacing = 4;
     [_card addSubview:row];
 
     [_card mas_makeConstraints:^(MASConstraintMaker *make) {
@@ -64,6 +72,9 @@
     }];
     [row mas_makeConstraints:^(MASConstraintMaker *make) {
       make.edges.equalTo(self.card).insets(UIEdgeInsetsMake(12, 16, 12, 8));
+    }];
+    [_renameBtn mas_makeConstraints:^(MASConstraintMaker *make) {
+      make.width.height.mas_equalTo(40);
     }];
     [_deleteBtn mas_makeConstraints:^(MASConstraintMaker *make) {
       make.width.height.mas_equalTo(40);
@@ -87,6 +98,10 @@
         NSForegroundColorAttributeName : AutumnOpsUITheme.onSurfaceVariant,
         NSParagraphStyleAttributeName : ps,
       }];
+}
+
+- (void)_renameTapped {
+  if (self.onRename) self.onRename();
 }
 
 - (void)_deleteTapped {

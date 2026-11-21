@@ -140,6 +140,11 @@ class _OpsSitesPageState extends State<OpsSitesPage> {
                                 ),
                               ),
                               IconButton(
+                                icon: const Icon(Icons.edit_outlined),
+                                tooltip: '修改名称',
+                                onPressed: () => _renameSite(s),
+                              ),
+                              IconButton(
                                 icon: const Icon(Icons.delete_outline),
                                 tooltip: '从本机移除',
                                 onPressed: () async {
@@ -177,6 +182,71 @@ class _OpsSitesPageState extends State<OpsSitesPage> {
                   },
                 ),
     );
+  }
+
+  Future<void> _renameSite(OpsSiteEntry s) async {
+    final ctrl = TextEditingController(text: s.title);
+    String? fieldError;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (d) {
+        return StatefulBuilder(
+          builder: (ctx, setLocal) {
+            return AlertDialog(
+              title: const Text('修改名称'),
+              content: TextField(
+                controller: ctrl,
+                autofocus: true,
+                maxLength: 64,
+                decoration: InputDecoration(
+                  hintText: '显示名称（选填）',
+                  errorText: fieldError,
+                  counterText: '',
+                ),
+                onSubmitted: (_) {
+                  final check = OpsValidators.siteTitle(ctrl.text);
+                  if (!check.ok) {
+                    setLocal(() => fieldError = check.error);
+                    return;
+                  }
+                  Navigator.pop(d, true);
+                },
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(d, false),
+                  child: const Text('取消'),
+                ),
+                FilledButton(
+                  onPressed: () {
+                    final check = OpsValidators.siteTitle(ctrl.text);
+                    if (!check.ok) {
+                      setLocal(() => fieldError = check.error);
+                      return;
+                    }
+                    Navigator.pop(d, true);
+                  },
+                  child: const Text('保存'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+    final next = ctrl.text.trim();
+    ctrl.dispose();
+    if (ok != true || !mounted) return;
+    final check = OpsValidators.siteTitle(next);
+    if (!check.ok) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(check.error ?? '名称无效')),
+      );
+      return;
+    }
+    s.title = next;
+    await _store?.upsertSite(s);
+    await _reload();
   }
 }
 

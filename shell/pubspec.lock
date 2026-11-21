@@ -23,14 +23,14 @@ packages:
       path: "../packages/autumn_ops"
       relative: true
     source: path
-    version: "0.1.4"
+    version: "0.1.19"
   autumn_ops_ui:
     dependency: "direct main"
     description:
       path: "../packages/autumn_ops_ui"
       relative: true
     source: path
-    version: "0.1.4"
+    version: "0.1.19"
   basic_utils:
     dependency: transitive
     description:

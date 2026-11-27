@@ -2,7 +2,7 @@
 # 须用仓库根 AutumnOpsCore.podspec（:git+:tag 或 :path => autumn-app 根），否则 SPEC CHECKSUM 与发版 lock 不一致。
 Pod::Spec.new do |s|
   s.name             = 'AutumnOpsCore'
-  s.version          = '0.1.20'
+  s.version          = '0.1.21'
   s.summary          = 'Autumn ops protocol client (RSA session, /ops/api/v1).'
   s.description      = 'Native ObjC client aligned with packages/autumn_ops. Security.framework only.'
   s.homepage         = 'https://git.minclouds.com/henryxm/autumn-app'

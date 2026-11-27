@@ -1,6 +1,6 @@
 Pod::Spec.new do |s|
   s.name             = 'AutumnOpsUI'
-  s.version          = '0.1.20'
+  s.version          = '0.1.21'
   s.summary          = 'Autumn ops UIKit Gate / manage (aligned with autumn_ops_ui).'
   s.homepage         = 'https://git.minclouds.com/henryxm/autumn-app'
   s.license          = { :type => 'Proprietary' }

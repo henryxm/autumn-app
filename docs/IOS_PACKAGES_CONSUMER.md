@@ -29,12 +29,36 @@ autumn-app/
 
 ## 2. 宿主引用
 
-### 2.1 本机 path 联调
+**真源**：仓库**根目录** `AutumnOpsCore.podspec` / `AutumnOpsUI.podspec`（`source_files` → `ios/.../Classes`）。  
+`ios/AutumnOps*/` 下的同名 podspec 仅为目录内副本，**禁止**写入宿主 Podfile（`source_files` 不同 → `Podfile.lock` 的 `SPEC CHECKSUMS` 会与发版不一致）。
+
+### 2.1 宿主 `:git`（默认，可提交）
+
+CocoaPods **不支持** Flutter 式 `git + 子目录 path`。
+
+```ruby
+pod 'AutumnOpsCore', :git => 'https://git.minclouds.com/henryxm/autumn-app.git', :tag => 'ops-v0.1.21'
+pod 'AutumnOpsUI',   :git => 'https://git.minclouds.com/henryxm/autumn-app.git', :tag => 'ops-v0.1.21'
+```
+
+发版可复现：源仓打 **`ops-vX.Y.Z`**（与 Dart packages 同 tag），宿主钉同一 `:tag`，并提交 `Podfile.lock`。  
+同一 tag 下各机 `pod install` 的 `SPEC CHECKSUMS`（AutumnOps*）必须一致；若漂移，清缓存后重装：
+
+```bash
+rm -rf ~/Library/Caches/CocoaPods/Pods/Specs/External/AutumnOps{Core,UI}
+rm -rf ~/Library/Caches/CocoaPods/Pods/External/AutumnOps{Core,UI}
+export LANG=en_US.UTF-8
+pod update AutumnOpsCore AutumnOpsUI
+```
+
+### 2.2 本机 path 联调（勿长期提交）
+
+**必须**指向仓库根（与 `:git` 共用根 podspec），禁止 `.../ios/AutumnOpsCore` 或 `.../ios/AutumnOpsUI`。
 
 ```ruby
 # Podfile（路径按本机布局调整）
-pod 'AutumnOpsCore', :path => '../path/to/autumn-app/ios/AutumnOpsCore'
-pod 'AutumnOpsUI',   :path => '../path/to/autumn-app/ios/AutumnOpsUI'
+pod 'AutumnOpsCore', :path => '../path/to/autumn-app'
+pod 'AutumnOpsUI',   :path => '../path/to/autumn-app'
 ```
 
 ```bash
@@ -43,19 +67,6 @@ pod install
 # 源码变更后：
 pod update AutumnOpsCore AutumnOpsUI
 ```
-
-### 2.2 宿主 `:git`（推荐）
-
-仓库**根目录**提供 `AutumnOpsCore.podspec` / `AutumnOpsUI.podspec`（`source_files` 指向 `ios/.../Classes`），供 CocoaPods 直接 `:git`（**不支持** Flutter 式 `git + 子目录 path`，也无可用 `:glob`）。
-
-```ruby
-pod 'AutumnOpsCore', :git => 'https://git.minclouds.com/henryxm/autumn-app.git', :tag => 'ops-v0.1.20'
-pod 'AutumnOpsUI',   :git => 'https://git.minclouds.com/henryxm/autumn-app.git', :tag => 'ops-v0.1.20'
-```
-
-发版可复现：源仓打 **`ops-vX.Y.Z`**（与 Dart packages 同 tag），宿主钉 `:tag => 'ops-vX.Y.Z'`，并锁 `Podfile.lock`。联调可临时 `:branch => 'main'`。
-
-本机联调仍可用 §2.1 `:path` 指向 `ios/AutumnOps*` 子目录 podspec。
 
 ---
 
@@ -111,7 +122,7 @@ pod 'AutumnOpsUI',   :git => 'https://git.minclouds.com/henryxm/autumn-app.git',
 - [ ] 普通 https / 旧 `/ops/discover` **不**进运维 Gate
 - [ ] 管理 IP / clearToken / 删当前 IP 门禁与 Flutter 一致
 - [ ] 运维消息 / 收藏入口已挂到 Gate（不再是宿主侧占位 toast）
-- [ ] `Podfile.lock` 可复现；跟版步骤已写入宿主文档；宿主 `pod update AutumnOpsUI`（≥0.1.20）+ `AutumnOpsCore`（≥0.1.20）；`:tag => 'ops-v0.1.20'`
+- [ ] `Podfile.lock` 可复现；跟版步骤已写入宿主文档；宿主 `pod update AutumnOpsUI`（≥0.1.21）+ `AutumnOpsCore`（≥0.1.21）；`:tag => 'ops-v0.1.21'`；`SPEC CHECKSUMS` 各机一致
 
 ---
 
